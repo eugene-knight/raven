@@ -1,0 +1,6 @@
+main :: (Int, Char) -> Int;
+main argc, argv = 
+        x :: 5;
+        y :: 5;
+        return 0;
+end

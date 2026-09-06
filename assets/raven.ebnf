@@ -1,0 +1,8 @@
+Function_Declaration = Identifier "::" "(" { Type "," } ")" "->" Type ";"
+Function_Defintion   = Identifier { Identifier "," } "=" { Statement } "end"
+
+Variable_Declaration = Identfier ":" [ Type ] ":" Initializer
+
+Initializer = Identifier | Digit
+Identifier  = [A-Z] | [a-z] | "_"
+Digit       = [0-9] 
