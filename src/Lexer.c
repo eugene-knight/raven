@@ -300,6 +300,39 @@ static void symbol(Lexer *lexer, Token_Proxy *proxy, size_t i) {
   Token_Type type = TOKEN_TYPE_UNDEFINED;
 
   switch (*end) {
+  case '+': {
+    advance_n_updateState(lexer);
+    end += 1;
+    type = TOKEN_TYPE_PLUS;
+    break;
+  }
+  case '"': {
+    advance_n_updateState(lexer);
+    end += 1;
+    for (; *end != '"';) {
+      advance_n_updateState(lexer);
+      end += 1;
+      if (*end == '\n') {
+        assert(0 && "unterminated string handling unimplemented");
+      }
+    }
+    advance_n_updateState(lexer);
+    end += 1;
+    type = TOKEN_TYPE_STRING_LITERAL;
+    break;
+  }
+  case '@': {
+    advance_n_updateState(lexer);
+    end += 1;
+    type = TOKEN_TYPE_AT;
+    break;
+  }
+  case '^': {
+    advance_n_updateState(lexer);
+    end += 1;
+    type = TOKEN_TYPE_CARET;
+    break;
+  }
   case ':': {
     advance_n_updateState(lexer);
     end += 1;
@@ -308,6 +341,11 @@ static void symbol(Lexer *lexer, Token_Proxy *proxy, size_t i) {
       advance_n_updateState(lexer);
       end += 1;
       type = TOKEN_TYPE_COLON_COLON;
+      break;
+    } else if (*end == '=') {
+      advance_n_updateState(lexer);
+      end += 1;
+      type = TOKEN_TYPE_COLON_EQUAL;
       break;
     }
     break;
@@ -358,7 +396,13 @@ static void symbol(Lexer *lexer, Token_Proxy *proxy, size_t i) {
 
   ptrdiff_t length = end - start;
 
-  assert(type != TOKEN_TYPE_UNDEFINED);
+  if (type == TOKEN_TYPE_UNDEFINED) {
+    printf("Char: %c\n", *start);
+    printf("String: %.*s\n", (int)length, start);
+    printf("Token_Type: %s\n", Token_getType(type));
+    assert(0 && type != TOKEN_TYPE_UNDEFINED);
+  }
+
   *(proxy->ptr) = start;
   *(proxy->length) = length;
   *(proxy->type) = type;

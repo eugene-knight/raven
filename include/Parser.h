@@ -8,11 +8,8 @@
   X(AST_TYPE_UNDEFINED)                                                        \
   X(AST_TYPE_ROOT)                                                             \
   X(AST_TYPE_TYPE)                                                             \
-  X(AST_TYPE_DECLARATION)                                                      \
-  X(AST_TYPE_DECLARATION_FUNCTION)                                             \
-  X(AST_TYPE_DECLARATION_VARIABLE)                                             \
-  X(AST_TYPE_DEFINITION_FUNCTION)                                              \
-  X(AST_TYPE_DEFINITION_VARIABLE)
+  X(AST_TYPE_EXPRESSION)                                                       \
+  X(AST_TYPE_EXPRESSION_FUNCTION)
 
 typedef uint32_t AST_Type;
 enum {
@@ -37,34 +34,16 @@ struct AST_Type {
 };
 typedef struct AST_Type AST_Kind;
 
-typedef struct AST_Declaration {
+typedef struct AST_Expression {
   struct AST base;
   String_View view;
-} AST_Declaration;
+} AST_Expression;
 
-typedef struct AST_Declaration_Function {
-  struct AST_Declaration self;
-  struct AST_Type *parametersType;
+typedef struct AST_Expression_Function {
+  struct AST_Expression self;
+  struct AST_Type *parameterTypes;
   struct AST_Type returnType;
-} AST_Declaration_Function;
-typedef struct AST_Declaration_Function AST_Decl_Fn;
-
-typedef struct AST_Definition {
-  struct AST base;
-  String_View view;
-} AST_Definition;
-
-typedef struct AST_Definition_Function {
-  struct AST_Definition self;
-  struct AST_Type *identifiers;
-  struct AST_Expression *expressions;
-} AST_Definition_Function;
-typedef struct AST_Definition_Function AST_Def_Fn;
-
-typedef struct AST_Declaration_Variable {
-  struct AST_Declaration self;
-} AST_Declaration_Variable;
-typedef struct AST_Declaration_Variable AST_Decl_Var;
+} AST_Expression_Function;
 
 typedef struct Parser {
   size_t index;
@@ -73,12 +52,10 @@ AST_Root *Parser_parseAST(Parser *parser, Token_Stream *pStream,
                           const Allocator *const pAllocator);
 
 typedef struct AST_Visitor {
-  void (*pfn_visitRoot)(const AST_Root *const pRoot,
+  void (*pfn_visitRoot)(const AST *const pRoot,
                         const struct AST_Visitor *const pVisitor);
-  void (*pfn_visitDeclarationDefinition)(
-      const AST *const pDeclaration,
-      const struct AST_Visitor *const pVisitor);
-
+  void (*pfn_visitExpression)(const AST *const pExpression,
+                              const struct AST_Visitor *const pVisitor);
   void *pContext;
 } AST_Visitor;
 

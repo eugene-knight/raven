@@ -1,132 +1,118 @@
 #include "Parser.h"
 
-static void syntaxError(void) { assert(0 && "unimplemented"); };
-
-NODISCARD static AST_Definition *
-parseDefinitionFunction(Parser *parser, Token_Stream *pStream,
-                       const Allocator *const pAllocator) {
-    assert(0 && "unimplemented");
-    return NULL;
-}
-
 NODISCARD
-static AST_Definition *
-parseDefinitionVariable(Parser *parser, Token_Stream *pStream,
-                        const Allocator *const pAllocator) {
+AST_Expression *
+parseExpressionVariableTypeExplicit(Parser *parser, Token_Stream *pStream,
+                                    const Allocator *const pAllocator) {
+  assert(0 && "unimplemented");
+  return NULL;
+}
+NODISCARD
+AST_Expression *parseExpressionFunction(Parser *parser, Token_Stream *pStream,
+                                        const Allocator *const pAllocator) {
+  AST_Expression_Function *pFunction = TALLOCATE(AST_Expression_Function, 1);
+  if (!pFunction) {
+    return NULL;
+  }
+  pFunction->self.base.type = AST_TYPE_EXPRESSION_FUNCTION;
+  pFunction->self.base.pNext = NULL;
+  pFunction->parameterTypes = NULL;
+
+  struct AST_Type **ppType = &pFunction->parameterTypes;
+
+  parser->index += 1;
+  for (; pStream->type[parser->index] == TOKEN_TYPE_IDENTIFIER;) {
+    struct AST_Type *pType = TALLOCATE(struct AST_Type, 1);
+    if (!pType) {
+      return NULL;
+    }
+
+    *ppType = pType;
+    ppType = (struct AST_Type **)&pType->base.pNext;
+
+    char *start = pStream->ptr[parser->index];
+
+  _restart:
+    switch (pStream->type[parser->index + 1]) {
+    case TOKEN_TYPE_CARET: {
+      parser->index += 1;
+      goto _restart;
+    }
+    }
+
+    pType->base.type = AST_TYPE_TYPE;
+    pType->base.pNext = NULL;
+    pType->view = String_View_fromChar(
+        start, ((pStream->ptr[parser->index] + pStream->length[parser->index]) -
+                start));
+
+    parser->index += 1;
+    if (pStream->type[parser->index] != TOKEN_TYPE_COMMA) {
+      break;
+    } else {
+      parser->index += 1;
+    }
+  }
+
+  if (pStream->type[parser->index] != TOKEN_TYPE_RIGHT_PARENTHESIS) {
+    printf("%.*s\n", (int)pStream->length[parser->index],
+           pStream->ptr[parser->index]);
+    assert(0 && "function syntax error handling unimplemented");
+  }
+
+  parser->index += 1;
+  if (pStream->type[parser->index] != TOKEN_TYPE_MINUS_GREATER_THAN) {
+    printf("%.*s\n", (int)pStream->length[parser->index],
+           pStream->ptr[parser->index]);
+    assert(0 && "function syntax error handling unimplemented");
+  }
+
+  parser->index += 1;
+  if (pStream->type[parser->index] != TOKEN_TYPE_IDENTIFIER) {
+    printf("%.*s\n", (int)pStream->length[parser->index],
+           pStream->ptr[parser->index]);
+    assert(0 && "function syntax error handling unimplemented");
+  }
+
+  parser->index += 1;
+  if (pStream->type[parser->index] != TOKEN_TYPE_SEMICOLON) {
+    printf("%.*s\n", (int)pStream->length[parser->index],
+           pStream->ptr[parser->index]);
+    assert(0 && "function syntax error handling unimplemented");
+  }
+
+  return (AST_Expression *)pFunction;
+}
+NODISCARD
+AST_Expression *
+parseExpressionVariableTypeInferred(Parser *parser, Token_Stream *pStream,
+                                    const Allocator *const pAllocator) {
   assert(0 && "unimplemented");
   return NULL;
 }
 
 NODISCARD
-static AST_Declaration *
-parseDeclarationFunction(Parser *parser, Token_Stream *pStream,
-                         const Allocator *const pAllocator) {
-  AST_Declaration_Function *fn = TALLOCATE(AST_Declaration_Function, 1);
-  fn->self.base.type = AST_TYPE_DECLARATION_FUNCTION;
-  fn->self.base.pNext = NULL;
-  fn->parametersType = NULL;
-  fn->returnType = (struct AST_Type){0};
-
-  // === PARAMETERS === //
+AST_Expression *parseExpression(Parser *parser, Token_Stream *pStream,
+                                const Allocator *const pAllocator) {
+  AST_Expression *pExpression = NULL;
   parser->index += 1;
-  struct AST **ppAST = (struct AST **)&fn->parametersType;
-  for (;;) {
-    if (pStream->type[parser->index] == TOKEN_TYPE_IDENTIFIER) {
-      struct AST_Type *type = TALLOCATE(struct AST_Type, 1);
-      if (!type) {
-        return NULL;
-      }
-
-      type->base.type = AST_TYPE_TYPE;
-      type->base.pNext = NULL;
-      type->view = String_View_fromTokenStream(pStream, parser->index);
-
-      *ppAST = (struct AST *)type;
-      ppAST = &type->base.pNext;
-
-      parser->index += 1;
-      if (pStream->type[parser->index] == TOKEN_TYPE_COMMA) {
-        parser->index += 1;
-        continue;
-      } else {
-        break;
-      }
-    }
-  }
-  // === PARAMETERS === //
-
-  // === RETURN TYPE === //
-  if (pStream->type[parser->index] != TOKEN_TYPE_RIGHT_PARENTHESIS) {
-    syntaxError();
-  }
-  parser->index += 1;
-  if (pStream->type[parser->index] != TOKEN_TYPE_MINUS_GREATER_THAN) {
-    syntaxError();
-  }
-  parser->index += 1;
-
-  fn->returnType.base.type = AST_TYPE_TYPE;
-  fn->returnType.base.pNext = NULL;
-  fn->returnType.view = String_View_fromTokenStream(pStream, parser->index);
-  parser->index += 1;
-  // === RETURN TYPE === //
-
-  // === TERMINATE DECLARATION === //
-  if (pStream->type[parser->index] != TOKEN_TYPE_SEMICOLON) {
-    syntaxError();
-  }
-  parser->index += 1;
-  // === TERMINATE DECLARATION === //
-
-  return (AST_Declaration *)fn;
-}
-
-NODISCARD
-static AST *parseDeclarationDefinition(Parser *parser, Token_Stream *pStream,
-                                       const Allocator *const pAllocator) {
-  AST *pAST = NULL;
-  size_t nameIndex = parser->index;
-
-  parser->index += 1;
-  switch (pStream->type[parser->index]) {
-  case TOKEN_TYPE_COLON_COLON: {
+  if (pStream->type[parser->index] == TOKEN_TYPE_COLON_COLON) {
     parser->index += 1;
     if (pStream->type[parser->index] == TOKEN_TYPE_LEFT_PARENTHESIS) {
-      AST_Declaration *pDeclaration = (AST_Declaration *)pAST;
-      pDeclaration = parseDeclarationFunction(parser, pStream, pAllocator);
-      if (!pDeclaration) {
-        return NULL;
-      }
-      pDeclaration->view = String_View_fromTokenStream(pStream, nameIndex);
-      return (AST *)pDeclaration;
+      pExpression = parseExpressionFunction(parser, pStream, pAllocator);
+    } else {
+      pExpression =
+          parseExpressionVariableTypeExplicit(parser, pStream, pAllocator);
     }
-    if (pStream->type[parser->index] == TOKEN_TYPE_IDENTIFIER ||
-        pStream->type[parser->index] == TOKEN_TYPE_DIGIT) {
-      AST_Definition *pDefinition = (AST_Definition *)pAST;
-      pDefinition = parseDefinitionVariable(parser, pStream, pAllocator);
-      if (!pDefinition) {
-        return NULL;
-      }
-      pDefinition->view = String_View_fromTokenStream(pStream, nameIndex);
-      return (AST *)pDefinition;
-    }
-  }
-  case TOKEN_TYPE_IDENTIFIER: {
-    AST_Definition *pDefinition = (AST_Definition *)pAST;
-    pDefinition = parseDefinitionFunction(parser, pStream, pAllocator);
-    if (!pDefinition) {
-      return NULL;
-    }
-    pDefinition->view = String_View_fromTokenStream(pStream, nameIndex);
-    break;
-  }
-  default:
-    fprintf(stderr, "Token_Type: %s\n",
-            Token_getType(pStream->type[parser->index]));
-    assert(0 && "unimplemented || undefined");
+  } else if (pStream->type[parser->index] == TOKEN_TYPE_COLON_EQUAL) {
+    pExpression =
+        parseExpressionVariableTypeInferred(parser, pStream, pAllocator);
+  } else {
+    assert(0 && "variable/function syntax error handling unimplemented");
   }
 
-  return NULL;
+  parser->index += 1; ///< Advance past semicolons, starting a new expression
+  return pExpression;
 }
 
 NODISCARD
@@ -141,20 +127,21 @@ AST_Root *Parser_parseAST(Parser *parser, Token_Stream *pStream,
   pRoot->base.pNext = NULL;
   pRoot->children = NULL;
 
-  struct AST **ppAST = &pRoot->children;
+  struct AST **pAST = &pRoot->children;
 
 _restart:
   switch (pStream->type[parser->index]) {
   case TOKEN_TYPE_IDENTIFIER: {
-    AST_Declaration *pDeclaration =
-        (AST_Declaration *)parseDeclarationDefinition(parser, pStream,
-                                                      pAllocator);
-    if (!pDeclaration) {
+    size_t nameIndex = parser->index;
+    AST_Expression *pExpression = parseExpression(parser, pStream, pAllocator);
+    if (!pExpression) {
       return NULL;
     }
 
-    *ppAST = (AST *)pDeclaration;
-    ppAST = (AST **)&pDeclaration->base.pNext;
+    pExpression->view = String_View_fromTokenStream(pStream, nameIndex);
+
+    *pAST = (AST *)pExpression;
+    pAST = (AST **)pExpression->base.pNext;
 
     goto _restart;
   }
@@ -176,11 +163,11 @@ void AST_accept(const AST *const pAST, const AST_Visitor *const pVisitor) {
   switch (pAST->type) {
   case AST_TYPE_ROOT:
     if (pVisitor->pfn_visitRoot != NULL)
-      pVisitor->pfn_visitRoot((AST_Root *)pAST, pVisitor);
+      pVisitor->pfn_visitRoot(pAST, pVisitor);
     return;
-  case AST_TYPE_DECLARATION:
-    if (pVisitor->pfn_visitDeclarationDefinition != NULL)
-      pVisitor->pfn_visitDeclarationDefinition(pAST, pVisitor);
+  case AST_TYPE_EXPRESSION:
+    if (pVisitor->pfn_visitExpression != NULL)
+      pVisitor->pfn_visitExpression(pAST, pVisitor);
     return;
   case AST_TYPE_UNDEFINED:
     assert(0 && "Encountered an undefined AST");
@@ -193,73 +180,42 @@ typedef struct Debug_Context {
   size_t indentation;
 } Debug_Context;
 
-void Debug_visitRoot(const AST_Root *const pRoot,
-                     const AST_Visitor *const pVisitor);
-void Debug_visitDeclarationDefinition(const AST *const pDeclaration,
-                                      const AST_Visitor *const pVisitor);
+typedef const AST *const _AST;
+typedef const AST_Root *const _AST_Root;
+typedef const AST_Expression *const _AST_Expression;
+
+void Debug_visitRoot(_AST pAST, const AST_Visitor *const pVisitor);
+void Debug_visitExpression(_AST pExpression, const AST_Visitor *const pVisitor);
 
 NODISCARD
 const AST_Visitor *AST_Visitor_Debug(void) {
   static Debug_Context context = {0};
   const static AST_Visitor debug = {
       .pfn_visitRoot = Debug_visitRoot,
-      .pfn_visitDeclarationDefinition = Debug_visitDeclarationDefinition,
+      .pfn_visitExpression = Debug_visitExpression,
       .pContext = &context,
   };
   return &debug;
 }
 
-void Debug_visitRoot(const AST_Root *const pRoot,
-                     const AST_Visitor *const pVisitor) {
+void Debug_visitExpression(_AST pExpression,
+                           const AST_Visitor *const pVisitor) {
+  assert(0 && "unimplemented");
+}
+
+void Debug_visitRoot(const AST *const pAST, const AST_Visitor *const pVisitor) {
   Debug_Context *pDebug = pVisitor->pContext;
+
+  _AST_Root pRoot = (_AST_Root)pAST;
 
   printf("AST_Root:\n");
   printf("+---| type: %s\n", AST_getType(pRoot->base.type));
 
   if (pRoot->children) {
     pDebug->indentation += 4;
-    Debug_visitDeclarationDefinition(pRoot->children, pVisitor);
+    Debug_visitExpression(pRoot->children, pVisitor);
   }
 }
-void Debug_visitDeclarationDefinition(const AST *const pAST,
-                                      const AST_Visitor *const pVisitor) {
-  Debug_Context *pDebug = pVisitor->pContext;
-
-  AST_Declaration *pDeclaration = (AST_Declaration *)pAST;
-
-  switch (pDeclaration->base.type) {
-  case AST_TYPE_DECLARATION_FUNCTION: {
-    const AST_Declaration_Function *const fn =
-        (const AST_Declaration_Function *const)pDeclaration;
-    printf("%*s%s:\n", (int)pDebug->indentation, " ", "AST_Declaration");
-    pDebug->indentation += 4;
-    printf("%*s+---| name: %.*s\n", (int)pDebug->indentation, " ",
-           (int)pDeclaration->view.length, pDeclaration->view.ptr);
-    printf("%*s+---| type: %s\n", (int)pDebug->indentation, " ",
-           AST_getType(pDeclaration->base.type));
-    printf("%*s+---| Parameters\n", (int)pDebug->indentation, " ");
-    pDebug->indentation += 4;
-
-    ///< (void *) to get rid of const discard shenanigans
-    ///< that is more trouble it is worth solving/worrying
-    struct AST_Type **ppType = (void *)&fn->parametersType;
-
-    for (size_t i = 0; *ppType != NULL; i += 1) {
-      printf("%*s+---| %zu: %.*s\n", (int)pDebug->indentation, " ", i,
-             (int)(*ppType)->view.length, (*ppType)->view.ptr);
-      *ppType = (struct AST_Type *)(*ppType)->base.pNext;
-    }
-    pDebug->indentation -= 4;
-
-    printf("%*s+---| return type: %.*s\n", (int)pDebug->indentation, " ",
-           (int)fn->returnType.view.length, fn->returnType.view.ptr);
-    break;
-  }
-  default:
-    assert(0 && "unimplemented || undefined");
-  };
-}
-
 NODISCARD
 const char *const AST_getType(AST_Type type) {
   switch (type) {

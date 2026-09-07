@@ -10,9 +10,14 @@
   X(TOKEN_TYPE_IDENTIFIER)                                                     \
   X(TOKEN_TYPE_COLON)                                                          \
   X(TOKEN_TYPE_COLON_COLON)                                                    \
+  X(TOKEN_TYPE_COLON_EQUAL)                                                    \
   X(TOKEN_TYPE_LEFT_PARENTHESIS)                                               \
   X(TOKEN_TYPE_RIGHT_PARENTHESIS)                                              \
+  X(TOKEN_TYPE_AT)                                                             \
+  X(TOKEN_TYPE_STRING_LITERAL)                                                 \
   X(TOKEN_TYPE_COMMA)                                                          \
+  X(TOKEN_TYPE_CARET)                                                          \
+  X(TOKEN_TYPE_PLUS)                                                           \
   X(TOKEN_TYPE_MINUS)                                                          \
   X(TOKEN_TYPE_MINUS_GREATER_THAN)                                             \
   X(TOKEN_TYPE_EQUAL)                                                          \

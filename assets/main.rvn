@@ -1,6 +1,9 @@
-main :: (Int, Char) -> Int;
-main argc, argv = 
-        x :: 5;
-        y :: 5;
-        return 0;
+main :: (Int, Char^^) -> Int;
+main argc, argv =
+        p : Int : 5;
+        q :: 5;
+        r : Int = p;
+        s := q;
+        t :: p + q + r + s;
 end
+
