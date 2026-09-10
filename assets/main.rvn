@@ -1,9 +1,6 @@
-main :: (Int, Char^^) -> Int;
-main argc, argv =
-        p : Int : 5;
-        q :: 5;
-        r : Int = p;
-        s := q;
-        t :: p + q + r + s;
+main :: (Int, ^^Char, $^$Char) -> Int;
+main <- ();
+        0;        
 end
+
 

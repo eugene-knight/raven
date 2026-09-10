@@ -32,7 +32,7 @@ Result Lexer_init(Lexer *out, char *fileName, _Allocator pAllocator) {
 
   // Resources & Resource-Dependent Variables //
   FILE *pFile = NULL;
-  void *pBuffer = NULL;
+  uint8_t *pBuffer = NULL;
   char *charBuffer = NULL;
   size_t bytesRead = 0;
   long fileSize = 0;
@@ -64,7 +64,7 @@ Result Lexer_init(Lexer *out, char *fileName, _Allocator pAllocator) {
     goto _result;
   }
 
-  charBuffer = &pBuffer[0];
+  charBuffer = (char *)&pBuffer[0];
   charBuffer[bytesRead] = '\0';
 
 _result:
@@ -300,6 +300,24 @@ static void symbol(Lexer *lexer, Token_Proxy *proxy, size_t i) {
   Token_Type type = TOKEN_TYPE_UNDEFINED;
 
   switch (*end) {
+        case '$': {
+            advance_n_updateState(lexer);
+            end += 1;
+            type = TOKEN_TYPE_DOLLAR;
+            break;
+        }
+  case '<': {
+    advance_n_updateState(lexer);
+    end += 1;
+    type = TOKEN_TYPE_LESS_THAN;
+    if (*end == '-') {
+      advance_n_updateState(lexer);
+      end += 1;
+      type = TOKEN_TYPE_LESS_THAN_MINUS;
+      break;
+    }
+    break;
+  }
   case '+': {
     advance_n_updateState(lexer);
     end += 1;
@@ -453,3 +471,5 @@ void Lexer_populateTokenStream(Lexer *lexer, Token_Stream *stream) {
     }
   }
 }
+
+Char_Class Lexer_getCharClass(char c) { return ClassTable[(uint8_t)c]; }

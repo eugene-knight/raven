@@ -22,12 +22,12 @@ Result Token_Stream_init(Token_Stream *stream, size_t capacity,
   ///< ensures that alignment is always satisfied
   size_t totalBytes = charPtrBytes + lengthBytes + typeBytes;
 
-  void *buffer = TALLOCATE(Byte, totalBytes);
+  uint8_t *buffer = TALLOCATE(Byte, totalBytes);
   CHKALLOCR(buffer);
 
-  stream->ptr = &buffer[0];
-  stream->length = &buffer[charPtrBytes];
-  stream->type = &buffer[charPtrBytes + lengthBytes];
+  stream->ptr = (char**)&buffer[0];
+  stream->length = (size_t*)&buffer[charPtrBytes];
+  stream->type = (Token_Type*)&buffer[charPtrBytes + lengthBytes];
   stream->capacity = capacity;
   stream->count = 0;
 

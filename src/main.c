@@ -28,11 +28,11 @@ int main(void) {
 
   Lexer_populateTokenStream(&lexer, &stream);
 
-  // printf("Tokens:\n");
-  // for (size_t i = 0; stream.type[i] != TOKEN_TYPE_END_OF_FILE; i += 1) {
-  //   printf("+----| %-15.*s -> %s\n", (int)stream.length[i], stream.ptr[i],
-  //          Token_getType(stream.type[i]));
-  // }
+  printf("Tokens:\n");
+  for (size_t i = 0; stream.type[i] != TOKEN_TYPE_END_OF_FILE; i += 1) {
+    printf("+----| %-15.*s -> %s\n", (int)stream.length[i], stream.ptr[i],
+           Token_getType(stream.type[i]));
+  }
 
   AST_Root *pRoot = Parser_parseAST(&parser, &stream, &aalloc);
   AST_accept((AST *)pRoot, AST_Visitor_Debug());

@@ -9,8 +9,11 @@
   X(AST_TYPE_ROOT)                                                             \
   X(AST_TYPE_TYPE)                                                             \
   X(AST_TYPE_EXPRESSION)                                                       \
-  X(AST_TYPE_EXPRESSION_FUNCTION)
+  X(AST_TYPE_LITERAL)                                                          \
+  X(AST_TYPE_BINDING)                                                          \
+  X(AST_TYPE_FUNCTION)
 
+typedef uint32_t AST_Flags;
 typedef uint32_t AST_Type;
 enum {
 #define X(ENUM) ENUM,
@@ -21,6 +24,7 @@ enum {
 typedef struct AST {
   struct AST *pNext;
   AST_Type type;
+  AST_Flags flags;
 } AST;
 
 typedef struct AST_Root {
@@ -28,22 +32,26 @@ typedef struct AST_Root {
   struct AST *children;
 } AST_Root;
 
-struct AST_Type {
-  struct AST base;
-  String_View view;
-};
-typedef struct AST_Type AST_Kind;
-
 typedef struct AST_Expression {
   struct AST base;
-  String_View view;
+  Token_Range range;
 } AST_Expression;
 
-typedef struct AST_Expression_Function {
+typedef struct AST_Function {
   struct AST_Expression self;
-  struct AST_Type *parameterTypes;
-  struct AST_Type returnType;
-} AST_Expression_Function;
+  AST_Expression *pParameterTypes;
+  AST_Expression returnType;
+} AST_Function;
+
+typedef struct AST_Binding {
+  struct AST_Expression target;
+  AST_Expression *pBinder;
+} AST_Binding;
+
+typedef struct AST_Literal {
+  struct AST base;
+  AST_Expression literal;
+} AST_Literal;
 
 typedef struct Parser {
   size_t index;

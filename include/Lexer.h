@@ -55,4 +55,6 @@ Result Lexer_init(Lexer *out, char *fileName,
 void Lexer_populateTokenStream(Lexer *in, Token_Stream *stream);
 void Lexer_release(Lexer *in, const Allocator *const pAllocator);
 
+Char_Class Lexer_getCharClass(char c);
+
 #endif

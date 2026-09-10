@@ -17,9 +17,12 @@
   X(TOKEN_TYPE_STRING_LITERAL)                                                 \
   X(TOKEN_TYPE_COMMA)                                                          \
   X(TOKEN_TYPE_CARET)                                                          \
+  X(TOKEN_TYPE_DOLLAR)                                                         \
   X(TOKEN_TYPE_PLUS)                                                           \
   X(TOKEN_TYPE_MINUS)                                                          \
   X(TOKEN_TYPE_MINUS_GREATER_THAN)                                             \
+  X(TOKEN_TYPE_LESS_THAN_MINUS)                                                \
+  X(TOKEN_TYPE_LESS_THAN)                                                      \
   X(TOKEN_TYPE_EQUAL)                                                          \
   X(TOKEN_TYPE_DIGIT)                                                          \
   X(TOKEN_TYPE_SEMICOLON)                                                      \
@@ -39,13 +42,11 @@ typedef struct Token {
   size_t length;
   Token_Type type;
 } Token;
-
 typedef struct Token_Proxy {
   char **ptr;
   size_t *length;
   Token_Type *type;
 } Token_Proxy;
-
 typedef struct Token_Stream {
   char **ptr;
   size_t *length;
@@ -53,6 +54,12 @@ typedef struct Token_Stream {
   size_t count;
   size_t capacity;
 } Token_Stream;
+typedef uint32_t Token_Index;
+typedef struct Token_Range {
+    uint32_t begin;
+    uint32_t end;
+} Token_Range;
+
 Result Token_Stream_init(Token_Stream *stream, size_t capacity,
                          const Allocator *const pAllocator);
 void Token_Stream_release(Token_Stream *stream,
