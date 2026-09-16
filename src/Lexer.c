@@ -106,6 +106,15 @@ void Lexer_initTables(void) {
   X(LEXER_STATE_COMPLETE, LEXER_STATE_INITIAL)                                 \
   X(LEXER_STATE_END_OF_FILE, LEXER_STATE_END_OF_FILE)
 
+#define CHAR_CLASS_NULL_TERMINATOR__                                           \
+  X(LEXER_STATE_INITIAL, LEXER_STATE_END_OF_FILE)                              \
+  X(LEXER_STATE_IDENTIFIER, LEXER_STATE_END_OF_FILE)                           \
+  X(LEXER_STATE_DIGIT, LEXER_STATE_END_OF_FILE)                                \
+  X(LEXER_STATE_SYMBOL, LEXER_STATE_END_OF_FILE)                               \
+  X(LEXER_STATE_WHITESPACE, LEXER_STATE_END_OF_FILE)                           \
+  X(LEXER_STATE_COMPLETE, LEXER_STATE_END_OF_FILE)                             \
+  X(LEXER_STATE_END_OF_FILE, LEXER_STATE_END_OF_FILE)
+
   ClassStateT classStateT[] = {
 #define X(OLD, NEW) {CHAR_CLASS_LETTER, OLD, NEW},
       CHAR_CLASS_LETTER__
@@ -118,6 +127,9 @@ void Lexer_initTables(void) {
 #undef X
 #define X(OLD, NEW) {CHAR_CLASS_WHITESPACE, OLD, NEW},
                   CHAR_CLASS_WHITESPACE__
+#undef X
+#define X(OLD, NEW) {CHAR_CLASS_NULL_TERMINATOR, OLD, NEW},
+                      CHAR_CLASS_NULL_TERMINATOR__
 #undef X
   };
 
@@ -197,7 +209,8 @@ Result Lexer_init(Lexer *lexer, char *pFileName,
 
   lexer->pContent = (char *)&pBuffer[0];
   lexer->length = bytesRead;
-  lexer->cursor = lexer->row = lexer->column = 0;
+  lexer->cursor = 0;
+  lexer->row = lexer->column = 1;
   lexer->state = LEXER_STATE_INITIAL;
 
 cleanup:
@@ -226,12 +239,19 @@ static inline Bool Lexer_isState(Lexer *lexer, Lexer_State state) {
 static inline char Lexer_charClass(char c) {
   return Lexer_charClassTable[(u8)c];
 }
+static inline void Lexer_complete(Lexer *lexer) {
+  lexer->state = LEXER_STATE_COMPLETE;
+}
 static inline void Lexer_restart(Lexer *lexer) {
   lexer->state = LEXER_STATE_INITIAL;
 }
 static inline void Lexer_advanceCursor(Lexer *lexer) {
   lexer->cursor += 1;
   lexer->column += 1;
+}
+static inline void Lexer_newline(Lexer *lexer) {
+  lexer->row += 1;
+  lexer->column = 0;
 }
 
 /// @brief Reducer
@@ -260,13 +280,194 @@ static inline void Lexer_advanceNSyncState(Lexer *lexer) {
 
 static void Lexer_isKeyword(Lexer *lexer, Token_Proxy *pProxy) {
   char *lhs = Token_getProxyPtr(pProxy);
-  if (strncmp(lhs, "enum", 4) == 0) {
+  if (strncmp(lhs, "end", 3) == 0) {
     Token_setProxyType(pProxy, TOKEN_TYPE_KEYWORD_END);
   }
 }
 
-static void Lexer_identifier(Lexer *lexer, Token_Proxy *pProxy) {
+typedef struct Position {
+  size_t row;
+  size_t column;
+} Position;
+static inline Position Lexer_cursorPosition(Lexer *lexer) {
+  return (Position){.row = lexer->row, .column = lexer->column};
+}
+
+static inline void Lexer_symbolColon(Lexer *lexer, Token_Proxy *pProxy) {
+  Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
+  Token_setProxyType(pProxy, TOKEN_TYPE_COLON);
+  Token_setProxyLength(pProxy, 1);
+
+  Lexer_advanceCursor(lexer);
+  switch (*Lexer_pointsAt(lexer)) {
+  case ':': {
+    Token_setProxyType(pProxy, TOKEN_TYPE_COLON_COLON);
+    Token_setProxyLength(pProxy, 2);
+    break;
+  }
+  }
+
+  Lexer_advanceCursor(lexer);
+  Lexer_complete(lexer);
+}
+
+static inline void Lexer_symbolEqual(Lexer *lexer, Token_Proxy *pProxy) {
+  Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
+  Token_setProxyType(pProxy, TOKEN_TYPE_EQUAL);
+  Token_setProxyLength(pProxy, 1);
+
+  Lexer_advanceCursor(lexer);
+  Lexer_complete(lexer);
+}
+
+static inline void Lexer_symbolComma(Lexer *lexer, Token_Proxy *pProxy) {
+  Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
+  Token_setProxyType(pProxy, TOKEN_TYPE_COMMA);
+  Token_setProxyLength(pProxy, 1);
+
+  Lexer_advanceCursor(lexer);
+  Lexer_complete(lexer);
+}
+
+static inline void Lexer_symbolDollar(Lexer *lexer, Token_Proxy *pProxy) {
+  Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
+  Token_setProxyType(pProxy, TOKEN_TYPE_DOLLAR);
+  Token_setProxyLength(pProxy, 1);
+
+  Lexer_advanceCursor(lexer);
+  Lexer_complete(lexer);
+}
+
+static inline void Lexer_symbolCaret(Lexer *lexer, Token_Proxy *pProxy) {
+  Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
+  Token_setProxyType(pProxy, TOKEN_TYPE_CARET);
+  Token_setProxyLength(pProxy, 1);
+
+  Lexer_advanceCursor(lexer);
+  Lexer_complete(lexer);
+}
+
+static inline void Lexer_symbolSemicolon(Lexer *lexer, Token_Proxy *pProxy) {
+  Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
+  Token_setProxyType(pProxy, TOKEN_TYPE_SEMICOLON);
+  Token_setProxyLength(pProxy, 1);
+
+  Lexer_advanceCursor(lexer);
+  Lexer_complete(lexer);
+}
+
+static inline void Lexer_symbolRightParenthesis(Lexer *lexer,
+                                                Token_Proxy *pProxy) {
+  Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
+  Token_setProxyType(pProxy, TOKEN_TYPE_RIGHT_PARENTHESIS);
+  Token_setProxyLength(pProxy, 1);
+
+  Lexer_advanceCursor(lexer);
+  Lexer_complete(lexer);
+}
+
+static inline void Lexer_symbolLeftParenthesis(Lexer *lexer,
+                                               Token_Proxy *pProxy) {
+  Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
+  Token_setProxyType(pProxy, TOKEN_TYPE_LEFT_PARENTHESIS);
+  Token_setProxyLength(pProxy, 1);
+
+  Lexer_advanceCursor(lexer);
+  Lexer_complete(lexer);
+}
+
+static inline void Lexer_symbolMinus(Lexer *lexer, Token_Proxy *pProxy) {
+  Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
+  Token_setProxyType(pProxy, TOKEN_TYPE_MINUS);
+  Token_setProxyLength(pProxy, 1);
+
+  Lexer_advanceCursor(lexer);
+  switch (*Lexer_pointsAt(lexer)) {
+  case '>': {
+    Token_setProxyType(pProxy, TOKEN_TYPE_MINUS_GREATER_THAN);
+    Token_setProxyLength(pProxy, 2);
+    break;
+  }
+  }
+
+  Lexer_advanceCursor(lexer);
+  Lexer_complete(lexer);
+}
+
+static inline void Lexer_symbolLessThan(Lexer *lexer, Token_Proxy *pProxy) {
+  Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
+  Token_setProxyType(pProxy, TOKEN_TYPE_LESS_THAN);
+  Token_setProxyLength(pProxy, 1);
+
+  Lexer_advanceCursor(lexer);
+  switch (*Lexer_pointsAt(lexer)) {
+  case '-': {
+    Token_setProxyType(pProxy, TOKEN_TYPE_LESS_THAN_MINUS);
+    Token_setProxyLength(pProxy, 2);
+    break;
+  }
+  }
+
+  Lexer_advanceCursor(lexer);
+  Lexer_complete(lexer);
+}
+
+static inline void Lexer_symbol(Lexer *lexer, Token_Proxy *pProxy) {
+  Position pos = Lexer_cursorPosition(lexer);
+  Token_setProxyRow(pProxy, pos.row);
+  Token_setProxyColumn(pProxy, pos.column);
+
+  switch (*Lexer_pointsAt(lexer)) {
+  case '-': {
+    Lexer_symbolMinus(lexer, pProxy);
+    break;
+  }
+  case '<': {
+    Lexer_symbolLessThan(lexer, pProxy);
+    break;
+  }
+  case '=': {
+    Lexer_symbolEqual(lexer, pProxy);
+    break;
+  }
+  case ',': {
+    Lexer_symbolComma(lexer, pProxy);
+    break;
+  }
+  case '^': {
+    Lexer_symbolCaret(lexer, pProxy);
+    break;
+  }
+  case '$': {
+    Lexer_symbolDollar(lexer, pProxy);
+    break;
+  }
+  case ';': {
+    Lexer_symbolSemicolon(lexer, pProxy);
+    break;
+  }
+  case ':': {
+    Lexer_symbolColon(lexer, pProxy);
+    break;
+  }
+  case '(': {
+    Lexer_symbolLeftParenthesis(lexer, pProxy);
+    break;
+  }
+  case ')': {
+    Lexer_symbolRightParenthesis(lexer, pProxy);
+    break;
+  }
+  default:
+    assert(0 && "unimplemented symbol");
+  }
+
+  assert(Lexer_currentState(lexer) == LEXER_STATE_COMPLETE);
+}
+
+static inline void Lexer_identifier(Lexer *lexer, Token_Proxy *pProxy) {
   char *pStart = Lexer_pointsAt(lexer);
+  Position pos = Lexer_cursorPosition(lexer);
 
   Lexer_advanceNSyncState(lexer);
   for (; Lexer_isState(lexer, LEXER_STATE_IDENTIFIER);) {
@@ -277,43 +478,77 @@ static void Lexer_identifier(Lexer *lexer, Token_Proxy *pProxy) {
 
   Token_setProxyPtr(pProxy, pStart);
   Token_setProxyLength(pProxy, (Lexer_pointsAt(lexer) - pStart));
+  Token_setProxyRow(pProxy, pos.row);
+  Token_setProxyColumn(pProxy, pos.column);
   Token_setProxyType(pProxy, TOKEN_TYPE_IDENTIFIER);
 
   Lexer_isKeyword(lexer, pProxy);
 }
 
+static inline void Lexer_digit(Lexer *lexer, Token_Proxy *pProxy) {
+  char *pStart = Lexer_pointsAt(lexer);
+  Position pos = Lexer_cursorPosition(lexer);
+
+  Lexer_advanceNSyncState(lexer);
+  for (; Lexer_isState(lexer, LEXER_STATE_DIGIT);) {
+    Lexer_advanceNSyncState(lexer);
+  }
+
+  assert(Lexer_currentState(lexer) == LEXER_STATE_COMPLETE);
+
+  Token_setProxyPtr(pProxy, pStart);
+  Token_setProxyLength(pProxy, (Lexer_pointsAt(lexer) - pStart));
+  Token_setProxyRow(pProxy, pos.row);
+  Token_setProxyColumn(pProxy, pos.column);
+  Token_setProxyType(pProxy, TOKEN_TYPE_DIGIT);
+}
+
 Result Lexer_tokenize(Lexer *lexer, Token_Proxy *pProxy) {
   Bool isNotComplete = TRUE;
 
+  assert(Lexer_currentState(lexer) == LEXER_STATE_INITIAL);
   for (; isNotComplete;) {
-    if (!Lexer_isState(lexer, LEXER_STATE_END_OF_FILE)) {
-      ///< Lexer always tokenize starting from initial state
-      assert(Lexer_currentState(lexer) == LEXER_STATE_INITIAL);
-      switch (Lexer_currentState(lexer)) {
-      case LEXER_STATE_INITIAL: {
-        Lexer_nextState(lexer);
-        break;
-      }
-      case LEXER_STATE_COMPLETE: {
-        ///< Always returns to `LEXER_STATE_INITIAL`
-        Lexer_restart(lexer);
-        isNotComplete = FALSE;
-        break;
-      }
-      case LEXER_STATE_IDENTIFIER: {
-        Lexer_identifier(lexer, pProxy);
-      }
-      case LEXER_STATE_END_OF_FILE: {
-        return Result_createSuccess();
-      }
-      case LEXER_STATE_WHITESPACE: {
+    ///< Lexer always tokenize starting from initial state
+    switch (Lexer_currentState(lexer)) {
+    case LEXER_STATE_INITIAL: {
+      Lexer_nextState(lexer);
+      break;
+    }
+    case LEXER_STATE_COMPLETE: {
+      ///< Always returns to `LEXER_STATE_INITIAL`
+      Lexer_restart(lexer);
+      isNotComplete = FALSE;
+      break;
+    }
+    case LEXER_STATE_IDENTIFIER: {
+      Lexer_identifier(lexer, pProxy);
+      break;
+    }
+    case LEXER_STATE_SYMBOL: {
+      Lexer_symbol(lexer, pProxy);
+      break;
+    }
+    case LEXER_STATE_DIGIT: {
+      Lexer_digit(lexer, pProxy);
+      break;
+    }
+    case LEXER_STATE_END_OF_FILE: {
+      isNotComplete = FALSE;
+      Token_setProxyNull(pProxy);
+      return Result_createSuccess();
+    }
+    case LEXER_STATE_WHITESPACE: {
+      for (; Lexer_isState(lexer, LEXER_STATE_WHITESPACE);) {
         if (*Lexer_pointsAt(lexer) == '\n') {
           Lexer_newline(lexer);
         }
+        Lexer_advanceNSyncState(lexer);
       }
-      default:
-        assert(0 && "Encountered LEXER_STATE_UNDEFINED");
-      }
+      Lexer_restart(lexer);
+      break;
+    }
+    default:
+      assert(0 && "Encountered LEXER_STATE_UNDEFINED");
     }
   }
   return Result_createSuccess();

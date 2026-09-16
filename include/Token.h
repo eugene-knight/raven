@@ -46,6 +46,7 @@ typedef struct Token {
   Token_Type type;
 } Token;
 
+typedef size_t Token_Index;
 typedef struct Token_Stream {
   char **ptr;
   size_t *length;
@@ -69,6 +70,9 @@ Result Token_Stream_init(Token_Stream *stream, size_t capacity,
                          const Allocator *const pAllocator);
 void Token_Stream_release(Token_Stream *stream,
                           const Allocator *const pAllocator);
+char *Token_Stream_getPtr(Token_Stream *stream, size_t index);
+size_t Token_Stream_getLength(Token_Stream *stream, size_t index);
+Token_Type Token_Stream_getType(Token_Stream *stream, size_t index);
 
 Token_Proxy Token_createProxy(char **ptrRef, size_t *lengthRef, size_t *rowRef,
                               size_t *columnRef, Token_Type *typeRef);
@@ -78,6 +82,7 @@ void Token_setProxyLength(Token_Proxy *proxy, size_t length);
 void Token_setProxyType(Token_Proxy *proxy, Token_Type type);
 void Token_setProxyRow(Token_Proxy *proxy, size_t row);
 void Token_setProxyColumn(Token_Proxy *proxy, size_t column);
+void Token_setProxyNull(Token_Proxy *proxy);
 
 char *Token_getProxyPtr(Token_Proxy *proxy);
 size_t Token_getProxyLength(Token_Proxy *proxy);

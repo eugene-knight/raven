@@ -31,6 +31,9 @@ target_sources(${PROJECT_NAME} PUBLIC
         ${CMAKE_SOURCE_DIR}/src/String.c
         ${CMAKE_SOURCE_DIR}/src/Lexer.c
         ${CMAKE_SOURCE_DIR}/src/Token.c
+        ${CMAKE_SOURCE_DIR}/src/Arena.c
+        ${CMAKE_SOURCE_DIR}/src/Parser.c
+        ${CMAKE_SOURCE_DIR}/src/AST/Visitor.c
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC

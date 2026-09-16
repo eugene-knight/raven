@@ -22,7 +22,7 @@ Result Token_Stream_init(Token_Stream *stream, size_t capacity,
   stream->type = (Token_Type *)&pBuffer[charPtrBytes + lengthBytes + rowBytes +
                                         columnBytes];
   stream->count = 0;
-  stream->capacity =capacity ;
+  stream->capacity = capacity;
 
   uintptr_t charAddress = (uintptr_t)&pBuffer[0];
   uintptr_t lengthAddress = (uintptr_t)&pBuffer[charPtrBytes];
@@ -52,12 +52,43 @@ void Token_Stream_release(Token_Stream *stream,
   stream->capacity = 0;
 }
 
-Token_Proxy Token_createProxy(char **ptrRef, size_t *lengthRef, size_t *rowref,
-                              size_t *columnRef, Token_Type *typeRef) {
-
-  return (Token_Proxy){.ptr = ptrRef, .length = lengthRef, .type = typeRef};
+char *Token_Stream_getPtr(Token_Stream *stream, size_t index) {
+  assert(index < stream->count);
+  return stream->ptr[index];
+}
+size_t Token_Stream_getLength(Token_Stream *stream, size_t index) {
+  assert(index < stream->count);
+  return stream->length[index];
+}
+Token_Type Token_Stream_getType(Token_Stream *stream, size_t index) {
+  assert(index < stream->count);
+  return stream->type[index];
 }
 
+Token_Proxy Token_createProxy(char **ptrRef, size_t *lengthRef, size_t *rowRef,
+                              size_t *columnRef, Token_Type *typeRef) {
+
+  return (Token_Proxy){.ptr = ptrRef,
+                       .length = lengthRef,
+                       .row = rowRef,
+                       .column = columnRef,
+                       .type = typeRef};
+}
+
+void Token_setProxyNull(Token_Proxy *proxy) {
+  static Token null = {
+      .ptr = "\0",
+      .length = 0,
+      .row = 0,
+      .column = 0,
+      .type = TOKEN_TYPE_END_OF_FILE,
+  };
+  *(proxy->ptr) = null.ptr;
+  *(proxy->length) = null.length;
+  *(proxy->row) = null.row;
+  *(proxy->column) = null.column;
+  *(proxy->type) = null.type;
+}
 void Token_setProxyPtr(Token_Proxy *proxy, char *ptr) { *(proxy->ptr) = ptr; }
 void Token_setProxyLength(Token_Proxy *proxy, size_t length) {
   *(proxy->length) = length;
@@ -81,7 +112,7 @@ const char *const Token_getType(Token_Type type) {
 #define X(ENUM)                                                                \
   case ENUM:                                                                   \
     return #ENUM;
-        TOKEN_TYPE__
+    TOKEN_TYPE__
 #undef X
   }
   return "TOKEN_TYPE_UNKNOWN";
