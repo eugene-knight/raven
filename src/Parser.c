@@ -55,7 +55,10 @@ typedef struct Variable {
   AST_Expression *pExpressions;
 } Variable;
 
-// static AST_Definition *parseFunctionDefinition(Parser *parser,)
+static AST_Definition *parseFunctionDefinition(Parser *parser) {
+
+}
+
 // static AST_Definition *parseFunctionDeclarationDefinition(Parser *parser,
 //                                                Function *pTransaction) {
 //   assert(0 && "unimplemented");
@@ -129,7 +132,7 @@ static AST_DataType *parseFunctionType(Parser *parser) {
   if (!pReturnType) {
     return NULL;
   }
-  *pReturnType = (AST_DataType){0};
+  pFunction->pReturnType = pReturnType;
 
   return (AST_DataType *)pFunction;
 }
@@ -194,7 +197,8 @@ static AST_Declaration *parseFunctionDeclaration(Parser *parser,
 
   if (!Parser_expects(parser, TOKEN_TYPE_SEMICOLON)) {
     Parser_syntaxError(parser);
-    // return (AST_Declaration *)parseFunctionDefinition(parser, pTransaction);
+    // return (AST_Declaration *)parseFunctionDeclarationDefinition(parser,
+    // pTransaction);
   }
   Parser_advance(parser);
 
@@ -234,14 +238,12 @@ static AST_Declaration *parseDeclaration(Parser *parser) {
       }
       assert(0 && "variable declaration unimplemented");
     }
-  }
-  // else if (Parser_expects(parser, TOKEN_TYPE_LEFT_PARENTHESIS)) {
-  // Parser_advance(parser);
-  // pDeclaration = (AST_Declaration *)parseFunctionDefinition(parser, );
-  // pDeclaration->name.base.type = AST_TYPE_IDENTIFIER;
-  // pDeclaration->name.name = nameIndex;
-  // }
-  else {
+  } else if (Parser_expects(parser, TOKEN_TYPE_LEFT_PARENTHESIS)) {
+    Parser_advance(parser);
+    pDeclaration = (AST_Declaration *)parseFunctionDefinition(parser);
+    pDeclaration->name.base.type = AST_TYPE_IDENTIFIER;
+    pDeclaration->name.name = nameIndex;
+  } else {
     Parser_syntaxError(parser);
   }
 

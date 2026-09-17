@@ -1,5 +1,6 @@
 #include "AST/Visitor.h"
 #include "AST/AST.h"
+#include "String.h"
 #include <stdio.h>
 
 static inline void Debug_increaseDepth(AST_Visitor *pVisitor) {
@@ -23,10 +24,10 @@ static inline char *Debug_streamPtr(AST_Visitor *pVisitor, size_t index) {
   AST_DebugContext *pContext = pVisitor->pContext;
   return Token_Stream_getPtr(pContext->pStream, index);
 }
-// static inline size_t Debug_streamLength(AST_Visitor *pVisitor, size_t index) {
-//   AST_DebugContext *pContext = pVisitor->pContext;
-//   return pContext->pStream->length[index];
-// }
+static inline size_t Debug_streamLength(AST_Visitor *pVisitor, size_t index) {
+  AST_DebugContext *pContext = pVisitor->pContext;
+  return pContext->pStream->length[index];
+}
 // static inline size_t Debug_streamType(AST_Visitor *pVisitor, size_t index) {
 //   AST_DebugContext *pContext = pVisitor->pContext;
 //   return pContext->pStream->type[index];
@@ -68,8 +69,75 @@ void Debug_visitExpression(AST_Expression *pExpression, AST_Visitor *pVisitor) {
   // }
 }
 
-void Debug_visitDataType(AST_DataType *pDataType, AST_Visitor *pVisitor) {
-  assert(0 && "unimplemented");
+void Debug_visitDataType(AST_DataType *pDataType, AST_Visitor *pVisitor,
+                         String *pString) {
+  AST_DataType *pCurrent = pDataType;
+  for (;;) {
+    switch (pCurrent->base.type) {
+    case AST_TYPE_SIMPLE_TYPE: {
+      AST_SimpleType *pSimple = (AST_SimpleType *)pCurrent;
+      Result result =
+          String_copyA(pString, Debug_streamPtr(pVisitor, pSimple->name.name),
+                       Debug_streamLength(pVisitor, pSimple->name.name));
+      if (!Result_isSuccess(result)) {
+        Result_printData(result);
+        abort();
+      }
+      pCurrent = NULL;
+      break;
+    }
+    case AST_TYPE_POINTER_TYPE: {
+      AST_PointerType *pPointer = (AST_PointerType *)pCurrent;
+      Result result = String_copyA(pString, "^", 1);
+      if (!Result_isSuccess(result)) {
+        Result_printData(result);
+        abort();
+      }
+      pCurrent = pPointer->pType;
+      break;
+    }
+    case AST_TYPE_MUTABLE_TYPE: {
+      AST_MutableType *pMutable = (AST_MutableType *)pCurrent;
+      Result result = String_copyA(pString, "$", 1);
+      if (!Result_isSuccess(result)) {
+        Result_printData(result);
+        abort();
+      }
+      pCurrent = pMutable->pType;
+      break;
+    }
+    case AST_TYPE_FUNCTION_TYPE: {
+      AST_FunctionType *pFunction = (AST_FunctionType *)pCurrent;
+      AST_DataType *pParameter = pFunction->pParameter;
+      for (;;) {
+        Debug_visitDataType(pParameter, pVisitor, pString);
+        pParameter = (AST_DataType *)pParameter->base.pNext;
+        if (!pParameter) {
+          break;
+        } else {
+          Result result = String_copyA(pString, ", ", 2);
+          if (!Result_isSuccess(result)) {
+            Result_printData(result);
+            abort();
+          }
+        }
+      }
+
+      Result result = String_copyA(pString, " -> ", 4);
+      if (!Result_isSuccess(result)) {
+        Result_printData(result);
+        abort();
+      }
+      pCurrent = pFunction->pReturnType;
+      break;
+    }
+    default:
+      assert(0 && "case unimplemented");
+    }
+    if (!pCurrent) {
+      break;
+    }
+  }
 }
 
 void Debug_visitDeclaration(AST_Declaration *pDeclaration,
@@ -84,13 +152,22 @@ void Debug_visitDeclaration(AST_Declaration *pDeclaration,
   switch (type) {
   case AST_TYPE_DECLARATION_FUNCTION: {
     Debug_increaseDepth(pVisitor);
-    AST_FunctionType *pParameter = (AST_FunctionType *)pDeclaration->pDataType;
-    DEBUG_LOG("+---| Parameters: %s\n", pParameter ? "" : "NONE");
-    for (;;) {
-      Debug_visitDataType(pDeclaration->pDataType, pVisitor);
+    AST_FunctionType *pFunction = (AST_FunctionType *)pDeclaration->pDataType;
+    String string;
+    Result result = String_init(&string, 1024, getDefaultAllocator());
+    if (!Result_isSuccess(result)) {
+      Result_printData(result);
+      return;
     }
+    Debug_visitDataType((AST_DataType *)pFunction, pVisitor, &string);
+    DEBUG_LOG("+---| %.*s\n", (int)String_getLength(&string),
+              String_getPtr(&string));
+    String_release(&string, getDefaultAllocator());
     Debug_decreaseDepth(pVisitor);
+    break;
   }
+  default:
+    assert(0 && "case unimplemented");
   }
 }
 void Debug_visitRoot(AST_Root *pRoot, AST_Visitor *pVisitor) {
@@ -103,7 +180,6 @@ void Debug_visitRoot(AST_Root *pRoot, AST_Visitor *pVisitor) {
     pDeclaration = (AST_Declaration *)pDeclaration->base.pNext;
   }
   Debug_decreaseDepth(pVisitor);
-  assert(0 && "unimplemented");
 }
 
 AST_Visitor AST_getDebug(AST_DebugContext *pContext) {
