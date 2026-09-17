@@ -22,13 +22,13 @@ static inline Token_Type Parser_type(Parser *parser) {
   UNUSED(Parser_length);
   return Token_Stream_getType(parser->pStream, parser->index);
 }
-static inline Bool Parser_DollarORCaret(Parser *parser) {
-  return (Parser_type(parser) == TOKEN_TYPE_DOLLAR ||
-          Parser_type(parser) == TOKEN_TYPE_CARET);
-}
 static inline Bool Parser_expects(Parser *parser, Token_Type type) {
   return (Parser_type(parser) == type);
 }
+// static inline Bool Parser_isDollarOrCaret(Parser *parser) {
+//   return (Parser_type(parser) == TOKEN_TYPE_DOLLAR ||
+//           Parser_type(parser) == TOKEN_TYPE_CARET);
+// }
 
 static void Parser_syntaxError(Parser *parser) { assert(0 && "unimplemented"); }
 
@@ -44,285 +44,169 @@ Operator_Precedence Operator_getPrecedence(Token_Type type) {
   return 0;
 }
 
-static AST_Expression *parseExpression(Parser *parser, Operator_Precedence op);
-
-typedef struct Function_Transaction {
-  Token_Index name;
-  AST_DataType *pParameterTypes;
-  AST_DataType *pReturnType;
-} Function_Transaction;
-typedef struct Variable_Transaction {
-  Token_Index name;
+typedef struct Function {
+  AST_Identifier name;
+  AST_DataType *pFunctionType;
+  AST_Expression *pExpressions;
+} Function;
+typedef struct Variable {
+  AST_Identifier name;
   AST_DataType *pDataType;
-  AST_Expression *pInitializer;
-} Variable_Transaction;
+  AST_Expression *pExpressions;
+} Variable;
 
-static AST_Declaration_Definition *
-parseVariableDeclarationDefinition(Parser *parser,
-                                   Variable_Transaction *trans) {
+// static AST_Definition *parseFunctionDefinition(Parser *parser,)
+// static AST_Definition *parseFunctionDeclarationDefinition(Parser *parser,
+//                                                Function *pTransaction) {
+//   assert(0 && "unimplemented");
+//   return NULL;
+// }
+
+static AST_Declaration *parseVariableDeclaration(Parser *parser,
+                                                 Variable *pTransaction) {
   assert(0 && "unimplemented");
   return NULL;
 }
 
-static AST_Declaration_Definition *
-parseFunctionDeclarationDefinition(Parser *parser,
-                                   Function_Transaction *trans) {
-  AST_Declaration_Definition_Function *pFunction =
-      TALLOCATE_(parser->pAllocator, AST_Declaration_Definition_Function, 1);
-  if (!pFunction) {
-    return NULL;
-  }
-  *pFunction = (AST_Declaration_Definition_Function){0};
-  pFunction->self.base.type = AST_TYPE_DECLARATION_N_DEFINITION_FUNCTION;
+static AST_DataType *parseDataType(Parser *parser);
 
-  if (!Parser_expects(parser, TOKEN_TYPE_LESS_THAN_MINUS)) {
-    Parser_syntaxError(parser);
-  }
+static AST_DataType *parseSimpleType(Parser *parser) {
+  AST_SimpleType *pSimple = TALLOCATE_(parser->pAllocator, AST_SimpleType, 1);
+  *pSimple = (AST_SimpleType){0};
+  pSimple->self.base.type = AST_TYPE_SIMPLE_TYPE;
+  pSimple->name.base.type = AST_TYPE_IDENTIFIER;
+  pSimple->name.name = Parser_index(parser);
+  Parser_advance(parser);
+  return (AST_DataType *)pSimple;
+}
+
+static AST_DataType *parseMutableType(Parser *parser) {
+  AST_MutableType *pMutable =
+      TALLOCATE_(parser->pAllocator, AST_MutableType, 1);
+  *pMutable = (AST_MutableType){0};
+  pMutable->self.base.type = AST_TYPE_MUTABLE_TYPE;
+  Parser_advance(parser);
+  pMutable->pType = parseDataType(parser);
+  return (AST_DataType *)pMutable;
+}
+
+static AST_DataType *parseFunctionType(Parser *parser) {
+  AST_FunctionType *pFunction =
+      TALLOCATE_(parser->pAllocator, AST_FunctionType, 1);
+  *pFunction = (AST_FunctionType){0};
+  pFunction->self.base.type = AST_TYPE_FUNCTION_TYPE;
   Parser_advance(parser);
 
-  if (!Parser_expects(parser, TOKEN_TYPE_LEFT_PARENTHESIS)) {
-    Parser_syntaxError(parser);
-  }
-  Parser_advance(parser);
+  AST_Reference ref;
+  AST_setReference(&ref, &pFunction->pParameter);
 
   if (!Parser_expects(parser, TOKEN_TYPE_RIGHT_PARENTHESIS)) {
-    AST_Reference ref;
-    AST_setReference(&ref, &pFunction->pArguments);
     for (;;) {
-      AST_Identifier *pArguments =
-          TALLOCATE_(parser->pAllocator, AST_Identifier, 1);
-      if (!pArguments) {
+      AST_DataType *pParameter = parseDataType(parser);
+      if (!pParameter) {
         return NULL;
       }
-      *pArguments = (AST_Identifier){0};
-      pArguments->base.type = AST_TYPE_IDENTIFIER;
-      pArguments->name = Parser_index(parser);
-
-      AST_referenceSetValue(&ref, pArguments);
-      AST_setReference(&ref, &pArguments->base.pNext);
-
-      Parser_advance(parser);
+      AST_referenceSetValue(&ref, pParameter);
+      AST_setReference(&ref, &pParameter->base.pNext);
       if (!Parser_expects(parser, TOKEN_TYPE_COMMA)) {
         break;
       }
       Parser_advance(parser);
     }
-  }
 
-  if (!Parser_expects(parser, TOKEN_TYPE_RIGHT_PARENTHESIS)) {
-    Parser_syntaxError(parser);
-  }
-  Parser_advance(parser);
-
-  if (!Parser_expects(parser, TOKEN_TYPE_EQUAL)) {
-    Parser_syntaxError(parser);
-  }
-  Parser_advance(parser);
-
-  AST_Reference ref;
-  AST_setReference(&ref, &pFunction->pBody);
-  for (;;) {
-    AST_Expression *pExpression =
-        parseExpression(parser, Operator_getMininum());
-    if (!Parser_expects(parser, TOKEN_TYPE_SEMICOLON)) {
+    if (!Parser_expects(parser, TOKEN_TYPE_RIGHT_PARENTHESIS)) {
       Parser_syntaxError(parser);
     }
     Parser_advance(parser);
-    if (!pExpression) {
-      return NULL;
-    }
-    AST_referenceSetValue(&ref, pExpression);
-    AST_setReference(&ref, &pExpression->base.pNext);
-    if (Parser_type(parser) == TOKEN_TYPE_KEYWORD_END) {
-      Parser_advance(parser);
-      break;
-    }
   }
 
-  pFunction->self.name = trans->name;
-  pFunction->pParameterTypes = trans->pParameterTypes;
-  pFunction->pReturnType = trans->pReturnType;
-
-  return (AST_Declaration_Definition *)pFunction;
-}
-
-static AST_Definition *parseFunctionDefinition(Parser *parser) {
-  AST_Definition_Function *pFunction =
-      TALLOCATE_(parser->pAllocator, AST_Definition_Function, 1);
-  *pFunction = (AST_Definition_Function){0};
-  pFunction->self.base.type = AST_TYPE_DEFINITION_FUNCTION;
-
-  if (!Parser_expects(parser, TOKEN_TYPE_RIGHT_PARENTHESIS)) {
-    AST_Reference ref;
-    AST_setReference(&ref, &pFunction->pArguments);
-    for (;;) {
-      AST_Identifier *pID = TALLOCATE_(parser->pAllocator, AST_Identifier, 1);
-      *pID = (AST_Identifier){0};
-      pID->base.type = AST_TYPE_IDENTIFIER;
-      pID->name = Parser_index(parser);
-
-      AST_referenceSetValue(&ref, pID);
-      AST_setReference(&ref, &pID->base.pNext);
-      Parser_advance(parser);
-      if (!Parser_expects(parser, TOKEN_TYPE_COMMA)) {
-        break;
-      }
-      Parser_advance(parser);
-    }
-  }
-
-  if (!Parser_expects(parser, TOKEN_TYPE_RIGHT_PARENTHESIS)) {
-    Parser_syntaxError(parser);
-  }
-  Parser_advance(parser);
-
-  if (!Parser_expects(parser, TOKEN_TYPE_EQUAL)) {
-    Parser_syntaxError(parser);
-  }
-  Parser_advance(parser);
-
-  AST_Reference ref;
-  AST_setReference(&ref, &pFunction->pBody);
-  for (;;) {
-    AST_Expression *pExpression =
-        parseExpression(parser, Operator_getMininum());
-    if (!Parser_expects(parser, TOKEN_TYPE_SEMICOLON)) {
-      Parser_syntaxError(parser);
-    }
-    Parser_advance(parser);
-    AST_referenceSetValue(&ref, pExpression);
-    AST_setReference(&ref, &pExpression->base.pNext);
-    if (Parser_type(parser) == TOKEN_TYPE_KEYWORD_END) {
-      Parser_advance(parser);
-      break;
-    }
-  }
-
-  return (AST_Definition *)pFunction;
-}
-
-static AST_Declaration *parseVariableDeclaration(Parser *parser,
-                                                 Variable_Transaction *trans) {
-  AST_DataType *pDataType = TALLOCATE_(parser->pAllocator, AST_DataType, 1);
-  if (!pDataType) {
-    return NULL;
-  }
-  *pDataType = (AST_DataType){0};
-  pDataType->base.type = AST_TYPE_DECLARATION_VARIABLE;
-  pDataType->range.begin = Parser_index(parser);
-
-  for (; Parser_DollarORCaret(parser);) {
-    Parser_advance(parser);
-    if (Parser_expects(parser, TOKEN_TYPE_SEMICOLON)) {
-      pDataType->range.end = Parser_index(parser);
-
-      AST_Declaration_Variable *pVariable =
-          TALLOCATE_(parser->pAllocator, AST_Declaration_Variable, 1);
-      if (!pVariable) {
-        return NULL;
-      }
-      *pVariable = (AST_Declaration_Variable){0};
-      pVariable->self.base.type = AST_TYPE_DECLARATION_VARIABLE;
-      pVariable->pType = pDataType;
-      return (AST_Declaration *)pVariable;
-    }
-    if (Parser_expects(parser, TOKEN_TYPE_EQUAL)) {
-      pDataType->range.end = Parser_index(parser);
-      trans->pDataType = pDataType;
-      return (AST_Declaration *)parseVariableDeclarationDefinition(parser,
-                                                                   trans);
-    }
-  }
-  return NULL;
-}
-
-static AST_Declaration *parseFunctionDeclaration(Parser *parser,
-                                                 Function_Transaction *trans) {
-  AST_Reference ref;
-  AST_setReference(&ref, &trans->pParameterTypes);
-
-  if (!Parser_expects(parser, TOKEN_TYPE_RIGHT_PARENTHESIS)) {
-    for (;;) {
-      AST_DataType *pAST = TALLOCATE_(parser->pAllocator, AST_DataType, 1);
-      if (!pAST) {
-        return NULL;
-      }
-      *pAST = (AST_DataType){0};
-      pAST->base.type = AST_TYPE_DATA_TYPE;
-      pAST->range.begin = Parser_index(parser);
-
-      if (!Parser_expects(parser, TOKEN_TYPE_IDENTIFIER)) {
-        for (; Parser_type(parser) == TOKEN_TYPE_CARET ||
-               Parser_type(parser) == TOKEN_TYPE_DOLLAR;) {
-          Parser_advance(parser);
-        }
-      }
-
-      if (!Parser_expects(parser, TOKEN_TYPE_IDENTIFIER)) {
-        Parser_syntaxError(parser);
-      }
-
-      pAST->range.end = Parser_index(parser);
-
-      AST_referenceSetValue(&ref, pAST);
-      AST_setReference(&ref, &pAST->base.pNext);
-
-      Parser_advance(parser);
-      if (!Parser_expects(parser, TOKEN_TYPE_COMMA)) {
-        break;
-      }
-      Parser_advance(parser);
-    }
-  }
-
-  if (!Parser_expects(parser, TOKEN_TYPE_RIGHT_PARENTHESIS)) {
-    Parser_syntaxError(parser);
-  }
-
-  Parser_advance(parser);
   if (!Parser_expects(parser, TOKEN_TYPE_MINUS_GREATER_THAN)) {
     Parser_syntaxError(parser);
   }
-
   Parser_advance(parser);
-  AST_DataType *pReturnType = TALLOCATE_(parser->pAllocator, AST_DataType, 1);
+
+  AST_DataType *pReturnType = parseDataType(parser);
   if (!pReturnType) {
     return NULL;
   }
-
   *pReturnType = (AST_DataType){0};
-  pReturnType->base.type = AST_TYPE_DATA_TYPE;
-  pReturnType->range.begin = Parser_index(parser);
 
-  if (!Parser_expects(parser, TOKEN_TYPE_IDENTIFIER)) {
-    for (; Parser_type(parser) == TOKEN_TYPE_CARET ||
-           Parser_type(parser) == TOKEN_TYPE_DOLLAR;) {
-      Parser_advance(parser);
+  return (AST_DataType *)pFunction;
+}
+
+static AST_DataType *parsePointerType(Parser *parser) {
+  AST_PointerType *pPointer = TALLOCATE_(parser->pAllocator, AST_DataType, 1);
+  *pPointer = (AST_PointerType){0};
+  pPointer->self.base.type = AST_TYPE_POINTER_TYPE;
+  Parser_advance(parser);
+  pPointer->pType = parseDataType(parser);
+  return (AST_DataType *)pPointer;
+}
+
+static AST_DataType *parseDataType(Parser *parser) {
+  AST_DataType *pType = NULL;
+  switch (Parser_type(parser)) {
+  case TOKEN_TYPE_IDENTIFIER: {
+    pType = parseSimpleType(parser);
+    if (!pType) {
+      return NULL;
     }
+    pType->base.type = AST_TYPE_SIMPLE_TYPE;
+    break;
+  }
+  case TOKEN_TYPE_CARET: {
+    pType = parsePointerType(parser);
+    if (!pType) {
+      return NULL;
+    }
+    pType->base.type = AST_TYPE_POINTER_TYPE;
+    break;
+  }
+  case TOKEN_TYPE_DOLLAR: {
+    pType = parseMutableType(parser);
+    if (!pType) {
+      return NULL;
+    }
+    pType->base.type = AST_TYPE_MUTABLE_TYPE;
+    break;
+  }
+  case TOKEN_TYPE_LEFT_PARENTHESIS: {
+    pType = parseFunctionType(parser);
+    if (!pType) {
+      return NULL;
+    }
+    pType->base.type = AST_TYPE_FUNCTION_TYPE;
+
+    break;
+  }
+  default:
+    assert(0 && "unimplemented");
+  }
+  return pType;
+}
+
+static AST_Declaration *parseFunctionDeclaration(Parser *parser,
+                                                 Function *pTransaction) {
+  pTransaction->pFunctionType = parseFunctionType(parser);
+  if (!pTransaction->pFunctionType) {
+    return NULL;
   }
 
-  if (!Parser_expects(parser, TOKEN_TYPE_IDENTIFIER)) {
-    Parser_syntaxError(parser);
-  }
-  pReturnType->range.end = Parser_index(parser);
-
-  Parser_advance(parser);
   if (!Parser_expects(parser, TOKEN_TYPE_SEMICOLON)) {
-    Parser_advance(parser);
-    return (AST_Declaration *)parseFunctionDeclarationDefinition(parser, trans);
+    Parser_syntaxError(parser);
+    // return (AST_Declaration *)parseFunctionDefinition(parser, pTransaction);
   }
-
   Parser_advance(parser);
-  AST_Declaration_Function *pDeclaration =
-      TALLOCATE_(parser->pAllocator, AST_Declaration_Function, 1);
-  *pDeclaration = (AST_Declaration_Function){0};
-  pDeclaration->self.base.type = AST_TYPE_DECLARATION_FUNCTION;
-  pDeclaration->self.name.base.type = AST_TYPE_IDENTIFIER;
-  pDeclaration->self.name.name = trans->name;
-  pDeclaration->pParameterTypes = trans->pParameterTypes;
-  pDeclaration->pReturnType = pReturnType;
 
-  return (AST_Declaration *)pDeclaration;
+  AST_Declaration *pFunction =
+      TALLOCATE_(parser->pAllocator, AST_Declaration, 1);
+  if (!pFunction) {
+    return NULL;
+  }
+  *pFunction = (AST_Declaration){0};
+  pFunction->base.type = AST_TYPE_DECLARATION_FUNCTION;
+  pFunction->pDataType = pTransaction->pFunctionType;
+  return pFunction;
 }
 
 static AST_Declaration *parseDeclaration(Parser *parser) {
@@ -333,28 +217,31 @@ static AST_Declaration *parseDeclaration(Parser *parser) {
   if (Parser_expects(parser, TOKEN_TYPE_COLON_COLON)) {
     Parser_advance(parser);
     if (Parser_expects(parser, TOKEN_TYPE_LEFT_PARENTHESIS)) {
-      Parser_advance(parser);
-      Function_Transaction trans = {0};
-      trans.name = nameIndex;
-      pDeclaration = parseFunctionDeclaration(parser, &trans);
+      Function fn = {0};
+      fn.name.base.type = AST_TYPE_IDENTIFIER;
+      fn.name.name = nameIndex;
+      pDeclaration = parseFunctionDeclaration(parser, &fn);
       if (!pDeclaration) {
         return NULL;
       }
     } else {
-      Parser_advance(parser);
-      Variable_Transaction trans = {0};
-      trans.name = nameIndex;
-      pDeclaration = parseVariableDeclaration(parser, &trans);
+      Variable var = {0};
+      var.name.base.type = AST_TYPE_IDENTIFIER;
+      var.name.name = nameIndex;
+      pDeclaration = parseVariableDeclaration(parser, &var);
       if (!pDeclaration) {
         return NULL;
       }
       assert(0 && "variable declaration unimplemented");
     }
-  } else if (Parser_expects(parser, TOKEN_TYPE_LEFT_PARENTHESIS)) {
-    Parser_advance(parser);
-    pDeclaration = (AST_Declaration *)parseFunctionDefinition(parser);
-    pDeclaration->name = nameIndex;
-  } else {
+  }
+  // else if (Parser_expects(parser, TOKEN_TYPE_LEFT_PARENTHESIS)) {
+  // Parser_advance(parser);
+  // pDeclaration = (AST_Declaration *)parseFunctionDefinition(parser, );
+  // pDeclaration->name.base.type = AST_TYPE_IDENTIFIER;
+  // pDeclaration->name.name = nameIndex;
+  // }
+  else {
     Parser_syntaxError(parser);
   }
 
@@ -396,15 +283,8 @@ static AST_Literal *parseLiteral(Parser *parser) {
 
 static AST_Expression *parseLeftDenotation(Parser *parser) {
   switch (Parser_type(parser)) {
-  case TOKEN_TYPE_COLON_COLON: {
-    AST_Declaration *pDeclaration = parseVariableDeclaration(parser);
-    if (!pDeclaration) {
-      return NULL;
-    }
-    break;
-  }
   default:
-    assert(0 && "case unimplemented")
+    assert(0 && "case unimplemented");
   }
   return NULL;
 }
@@ -445,6 +325,7 @@ static AST_Expression *parseExpression(Parser *parser, Operator_Precedence op) {
 }
 
 AST_Root *Parser_parseAST(Parser *parser) {
+  UNUSED(parseExpression);
   AST_Root *pRoot = TALLOCATE_(parser->pAllocator, AST_Root, 1);
   if (!pRoot) {
     return NULL;

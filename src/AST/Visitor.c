@@ -14,16 +14,16 @@ static inline int Debug_getIndentation(AST_Visitor *pVisitor) {
   AST_DebugContext *pContext = pVisitor->pContext;
   return (int)(pContext->depth * pContext->indentation);
 }
-// static inline Token_Stream *Debug_getTokenStream(AST_Visitor *pVisitor) {
-//   AST_DebugContext *pContext = pVisitor->pContext;
-//   return pContext->pStream;
-// }
+
+// // static inline Token_Stream *Debug_getTokenStream(AST_Visitor *pVisitor) {
+// //   AST_DebugContext *pContext = pVisitor->pContext;
+// //   return pContext->pStream;
+// // }
 static inline char *Debug_streamPtr(AST_Visitor *pVisitor, size_t index) {
   AST_DebugContext *pContext = pVisitor->pContext;
   return Token_Stream_getPtr(pContext->pStream, index);
 }
-// static inline size_t Debug_streamLength(AST_Visitor *pVisitor, size_t index)
-// {
+// static inline size_t Debug_streamLength(AST_Visitor *pVisitor, size_t index) {
 //   AST_DebugContext *pContext = pVisitor->pContext;
 //   return pContext->pStream->length[index];
 // }
@@ -44,89 +44,53 @@ static inline int Debug_streamRange(AST_Visitor *pVisitor, size_t begin,
 #define DEBUG_LOG(FMT, ...)                                                    \
   printf("%-*s" FMT, Debug_getIndentation(pVisitor), "", __VA_ARGS__)
 
-void Debug_visitLiteral(AST_Literal *pLiteral, AST_Visitor *pVisitor) {
-  switch (pLiteral->type) {
-  case LITERAL_TYPE_INTEGER: {
-    DEBUG_LOG("AST_Literal: %d\n", pLiteral->as.integer);
-    break;
-  }
-  default:
-    assert(0 && "unimplemented case");
-  }
+// void Debug_visitLiteral(AST_Literal *pLiteral, AST_Visitor *pVisitor) {
+//   switch (pLiteral->type) {
+//   case LITERAL_TYPE_INTEGER: {
+//     DEBUG_LOG("AST_Literal: %d\n", pLiteral->as.integer);
+//     break;
+//   }
+//   default:
+//     assert(0 && "unimplemented case");
+//   }
+// }
+//
+void Debug_visitExpression(AST_Expression *pExpression, AST_Visitor *pVisitor) {
+  // switch (pExpression->base.type) {
+  // case AST_TYPE_EXPRESSION_LITERAL: {
+  //   Debug_increaseDepth(pVisitor);
+  //   Debug_visitLiteral((AST_Literal *)pExpression, pVisitor);
+  //   Debug_decreaseDepth(pVisitor);
+  //   break;
+  // }
+  // default:
+  assert(0 && "case unimplemented");
+  // }
 }
 
-void Debug_visitExpression(AST_Expression *pExpression, AST_Visitor *pVisitor) {
-  switch (pExpression->base.type) {
-  case AST_TYPE_EXPRESSION_LITERAL: {
-    Debug_increaseDepth(pVisitor);
-    Debug_visitLiteral((AST_Literal *)pExpression, pVisitor);
-    Debug_decreaseDepth(pVisitor);
-    break;
-  }
-  default:
-    assert(0 && "case unimplemented");
-  }
+void Debug_visitDataType(AST_DataType *pDataType, AST_Visitor *pVisitor) {
+  assert(0 && "unimplemented");
 }
 
 void Debug_visitDeclaration(AST_Declaration *pDeclaration,
                             AST_Visitor *pVisitor) {
   DEBUG_LOG("AST_Declaration: %.*s\n",
-            Debug_streamRange(pVisitor, pDeclaration->name, pDeclaration->name),
-            Debug_streamPtr(pVisitor, pDeclaration->name));
+            Debug_streamRange(pVisitor, pDeclaration->name.name,
+                              pDeclaration->name.name),
+            Debug_streamPtr(pVisitor, pDeclaration->name.name));
   AST_Type type = pDeclaration->base.type;
   DEBUG_LOG("+---| type: %s\n", AST_getType(type));
 
   switch (type) {
   case AST_TYPE_DECLARATION_FUNCTION: {
     Debug_increaseDepth(pVisitor);
-    AST_Declaration_Function *pFunction =
-        (AST_Declaration_Function *)pDeclaration;
-    AST_DataType *pParameter = pFunction->pParameterTypes;
-    DEBUG_LOG("+---| Parameters: %s", pParameter ? "\n" : "NONE");
-    for (; pParameter;) {
-      DEBUG_LOG("+---| %.*s\n",
-                Debug_streamRange(pVisitor, pParameter->range.begin,
-                                  pParameter->range.end),
-                Debug_streamPtr(pVisitor, pParameter->range.begin));
-      pParameter = (AST_DataType *)pParameter->base.pNext;
-    }
-    AST_DataType *pReturnType = pFunction->pReturnType;
-    DEBUG_LOG("+---| %.*s\n",
-              Debug_streamRange(pVisitor, pReturnType->range.begin,
-                                pReturnType->range.end),
-              Debug_streamPtr(pVisitor, pReturnType->range.begin));
-    Debug_decreaseDepth(pVisitor);
-    break;
-  }
-  case AST_TYPE_DEFINITION_FUNCTION: {
-    Debug_increaseDepth(pVisitor);
-    AST_Definition_Function *pFunction =
-        (AST_Definition_Function *)pDeclaration;
-    AST_Identifier *pID = pFunction->pArguments;
-    DEBUG_LOG("+---| Arguments: %s", pID ? "\n" : "NONE");
-    Debug_increaseDepth(pVisitor);
-    for (; pID;) {
-      DEBUG_LOG("+---| %.*s\n",
-                Debug_streamRange(pVisitor, pID->name, pID->name),
-                Debug_streamPtr(pVisitor, pID->name));
-      pID = (AST_Identifier *)pID->base.pNext;
+    AST_FunctionType *pParameter = (AST_FunctionType *)pDeclaration->pDataType;
+    DEBUG_LOG("+---| Parameters: %s\n", pParameter ? "" : "NONE");
+    for (;;) {
+      Debug_visitDataType(pDeclaration->pDataType, pVisitor);
     }
     Debug_decreaseDepth(pVisitor);
-    DEBUG_LOG("+---| Body:%s", "\n");
-    AST_Expression *pExpression = pFunction->pBody;
-    for (; pExpression;) {
-      Debug_visitExpression(pExpression, pVisitor);
-      pExpression = (AST_Expression *)pExpression->base.pNext;
-    }
-    Debug_decreaseDepth(pVisitor);
-    break;
   }
-  case AST_TYPE_DECLARATION_VARIABLE: {
-    assert(0 && "unimplemented");
-    break;
-  }
-  default:
-    assert(0 && "unreachaable");
   }
 }
 void Debug_visitRoot(AST_Root *pRoot, AST_Visitor *pVisitor) {
@@ -139,6 +103,7 @@ void Debug_visitRoot(AST_Root *pRoot, AST_Visitor *pVisitor) {
     pDeclaration = (AST_Declaration *)pDeclaration->base.pNext;
   }
   Debug_decreaseDepth(pVisitor);
+  assert(0 && "unimplemented");
 }
 
 AST_Visitor AST_getDebug(AST_DebugContext *pContext) {

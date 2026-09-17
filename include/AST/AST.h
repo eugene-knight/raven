@@ -7,6 +7,10 @@
   X(AST_TYPE_UNDEFINED)                                                        \
   X(AST_TYPE_ROOT)                                                             \
   X(AST_TYPE_DATA_TYPE)                                                        \
+  X(AST_TYPE_SIMPLE_TYPE)                                                      \
+  X(AST_TYPE_POINTER_TYPE)                                                     \
+  X(AST_TYPE_MUTABLE_TYPE)                                                     \
+  X(AST_TYPE_FUNCTION_TYPE)                                                    \
   X(AST_TYPE_IDENTIFIER)                                                       \
   X(AST_TYPE_DECLARATION)                                                      \
   X(AST_TYPE_DECLARATION_FUNCTION)                                             \
@@ -56,28 +60,33 @@ typedef struct AST_Identifier {
   Token_Index name;
 } AST_Identifier;
 
+typedef struct AST_DataType {
+  struct AST base;
+} AST_DataType;
+
+typedef struct AST_SimpleType {
+  struct AST_DataType self;
+  AST_Identifier name;
+} AST_SimpleType;
+typedef struct AST_PointerType {
+  struct AST_DataType self;
+  AST_DataType *pType;
+} AST_PointerType;
+typedef struct AST_MutableType {
+  struct AST_DataType self;
+  AST_DataType *pType;
+} AST_MutableType;
+typedef struct AST_FunctionType {
+  struct AST_DataType self;
+  AST_DataType *pParameter;
+  AST_DataType *pReturnType;
+} AST_FunctionType;
+
 struct AST_Declaration {
   struct AST base;
   AST_Identifier name;
+  AST_DataType *pDataType;
 };
-
-typedef struct AST_Definition {
-  struct AST base;
-  AST_Identifier name;
-} AST_Definition;
-
-typedef struct AST_Declaration_Definition {
-  struct AST base;
-  AST_Identifier name;
-} AST_Declaration_Definition;
-
-typedef struct AST_DataType {
-  struct AST base;
-  struct {
-    Token_Index begin;
-    Token_Index end;
-  } range;
-} AST_DataType;
 
 typedef struct AST_Expression {
   struct AST base;
@@ -114,35 +123,5 @@ typedef struct AST_Call {
   struct AST_Expression self;
   AST_Expression *pArguments;
 } AST_Call;
-
-typedef struct AST_Declaration_Function {
-  struct AST_Declaration self;
-  AST_DataType *pParameterTypes;
-  AST_DataType *pReturnType;
-} AST_Declaration_Function;
-
-typedef struct AST_Definition_Function {
-  struct AST_Definition self;
-  AST_Identifier *pArguments;
-  AST_Expression *pBody;
-} AST_Definition_Function;
-
-typedef struct AST_Declaration_Definition_Function {
-  struct AST_Declaration_Definition self;
-  AST_DataType *pParameterTypes;
-  AST_DataType *pReturnType;
-  AST_Identifier *pArguments;
-  AST_Expression *pBody;
-} AST_Declaration_Definition_Function;
-
-typedef struct AST_Declaration_Variable {
-  struct AST_Declaration self;
-  AST_DataType *pType;
-} AST_Declaration_Variable;
-
-typedef struct AST_Definition_Variable {
-  struct AST_Declaration_Variable super;
-  AST_Expression *pInitializer;
-} AST_Definition_Variable;
 
 #endif
