@@ -13,27 +13,11 @@
   X(AST_TYPE_FUNCTION_TYPE)                                                    \
   X(AST_TYPE_IDENTIFIER)                                                       \
   X(AST_TYPE_DECLARATION)                                                      \
-  X(AST_TYPE_DECLARATION_FUNCTION)                                             \
-  X(AST_TYPE_DECLARATION_VARIABLE)                                             \
-  X(AST_TYPE_DEFINITION)                                                       \
-  X(AST_TYPE_DEFINITION_FUNCTION)                                              \
-  X(AST_TYPE_DEFINITION_VARIABLE)                                              \
-  X(AST_TYPE_DECLARATION_N_DEFINITION)                                         \
-  X(AST_TYPE_DECLARATION_N_DEFINITION_FUNCTION)                                \
-  X(AST_TYPE_DECLARATION_N_DEFINITION_VARIABLE)                                \
-  X(AST_TYPE_EXPRESSION_STATEMENT)                                             \
-  X(AST_TYPE_EXPRESSION_BINARY_OPERATION)                                      \
+  X(AST_TYPE_FUNCTION_DEFINITION)                                              \
+  X(AST_TYPE_FUNCTION_DECLARATION)                                             \
+  X(AST_TYPE_EXPRESSION_OPERATOR)                                              \
+  X(AST_TYPE_EXPRESSION_BINARY_OPERATOR)                                       \
   X(AST_TYPE_EXPRESSION_LITERAL)
-
-typedef uint32_t Operator_Precedence;
-#define OPERATOR_PRECEDENCE__                                                  \
-  X(TOKEN_TYPE_COLON_COLON, 60)                                                \
-  X(TOKEN_TYPE_PLUS, 24)                                                       \
-  X(TOKEN_TYPE_EQUAL, 10)                                                      \
-  X(TOKEN_TYPE_SEMICOLON, 2)
-
-Operator_Precedence Operator_getMininum(void);
-Operator_Precedence Operator_getPrecedence(Token_Type type);
 
 typedef uint32_t AST_Type;
 enum {
@@ -48,11 +32,9 @@ typedef struct AST {
   AST_Type type;
 } AST;
 
-typedef struct AST_Declaration AST_Declaration;
-
 typedef struct AST_Root {
   struct AST base;
-  AST_Declaration *pDeclarations;
+  AST *pAST;
 } AST_Root;
 
 typedef struct AST_Identifier {
@@ -82,23 +64,38 @@ typedef struct AST_FunctionType {
   AST_DataType *pReturnType;
 } AST_FunctionType;
 
-struct AST_Declaration {
+typedef struct AST_Declaration {
   struct AST base;
   AST_Identifier name;
   AST_DataType *pDataType;
-};
+} AST_Declaration;
 
 typedef struct AST_Expression {
   struct AST base;
 } AST_Expression;
 
+typedef struct AST_FunctionDefinition {
+  struct AST base;
+  AST_Identifier name;
+  AST_Identifier *pArguments;
+  AST_Expression *pExpression;
+} AST_FunctionDefinition;
+typedef struct AST_VariableDefinition {
+  struct AST base;
+  AST_Identifier name;
+  AST_DataType *pType;
+  AST_Expression *pExpression;
+} AST_VariableDefinition;
+
 typedef uint32_t Literal_Type;
-#define LITERAL_TYPE__ X(LITERAL_TYPE_INTEGER)
+#define LITERAL_TYPE__ X(LITERAL_TYPE_INTEGER, "Integer")
 enum {
-#define X(ENUM) ENUM,
+#define X(ENUM, _) ENUM,
   LITERAL_TYPE__
 #undef X
 };
+const char *const Literal_getPtr(Literal_Type type);
+const char *const Literal_getType(Literal_Type type);
 
 typedef struct AST_Literal {
   struct AST_Expression self;
@@ -108,16 +105,49 @@ typedef struct AST_Literal {
   } as;
 } AST_Literal;
 
-typedef struct AST_Operator {
-  struct AST base;
-} AST_Operator;
+typedef uint32_t Operator_Precedence;
+#define OPERATOR_PRECEDENCE_MINIMUM                                            \
+  2 /// < 1 for right-associativity, 0 for detecting errors
+#define OPERATOR_PRECEDENCE__                                                  \
+  X(TOKEN_TYPE_LEFT_PARENTHESIS, 130)                                          \
+  X(TOKEN_TYPE_COLON_COLON, 60)                                                \
+  X(TOKEN_TYPE_PERCENTAGE, 100)                                                \
+  X(TOKEN_TYPE_FORWARD_SLASH, 100)                                             \
+  X(TOKEN_TYPE_ASTERISK, 100)                                                  \
+  X(TOKEN_TYPE_MINUS, 90)                                                      \
+  X(TOKEN_TYPE_PLUS, 90)                                                       \
+  X(TOKEN_TYPE_EQUAL, 10)                                                      \
+  X(TOKEN_TYPE_LESS_THAN_MINUS, 10)                                            \
+  X(TOKEN_TYPE_SEMICOLON, OPERATOR_PRECEDENCE_MINIMUM)
 
-typedef struct AST_BinaryOperation {
+Operator_Precedence Operator_getMininum(void);
+Operator_Precedence Operator_getPrecedence(Token_Type type);
+
+#define OPERATOR_TYPE__                                                        \
+  X(OPERATOR_TYPE_COLON_COLON, "::")                                           \
+  X(OPERATOR_TYPE_LESS_THAN_MINUS, "<-")                                       \
+  X(OPERATOR_TYPE_PERCENTAGE, "%")                                             \
+  X(OPERATOR_TYPE_FORWARD_SLASH, "/")                                          \
+  X(OPERATOR_TYPE_ASTERISK, "*")                                               \
+  X(OPERATOR_TYPE_MINUS, "-")                                                  \
+  X(OPERATOR_TYPE_PLUS, "+")                                                   \
+  X(OPERATOR_TYPE_EQUAL, "=")
+
+typedef uint32_t Operator_Type;
+enum {
+#define X(ENUM, _) ENUM,
+  OPERATOR_TYPE__
+#undef X
+};
+const char *const Operator_getType(Operator_Type op);
+const char *const Operator_getPtr(Operator_Type op);
+
+typedef struct AST_BinaryOperator {
   struct AST_Expression self;
-  AST_Operator operator;
+  Operator_Type operatorType;
   AST_Expression *pLeft;
   AST_Expression *pRight;
-} AST_BinaryOperation;
+} AST_BinaryOperator;
 
 typedef struct AST_Call {
   struct AST_Expression self;

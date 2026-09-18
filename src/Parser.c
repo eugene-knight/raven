@@ -2,10 +2,10 @@
 #include <stdio.h>
 
 typedef struct AST **AST_Reference;
-static inline void AST_setReference(AST_Reference *pRef, void *ppAST) {
+static inline void AST_setReference(AST_Reference *pRef, AST **ppAST) {
   *pRef = ppAST;
 }
-static inline void AST_referenceSetValue(AST_Reference *pRef, void *pAST) {
+static inline void AST_referenceSetValue(AST_Reference *pRef, AST *pAST) {
   **pRef = pAST;
 }
 
@@ -55,23 +55,8 @@ typedef struct Variable {
   AST_Expression *pExpressions;
 } Variable;
 
-static AST_Definition *parseFunctionDefinition(Parser *parser) {
-
-}
-
-// static AST_Definition *parseFunctionDeclarationDefinition(Parser *parser,
-//                                                Function *pTransaction) {
-//   assert(0 && "unimplemented");
-//   return NULL;
-// }
-
-static AST_Declaration *parseVariableDeclaration(Parser *parser,
-                                                 Variable *pTransaction) {
-  assert(0 && "unimplemented");
-  return NULL;
-}
-
 static AST_DataType *parseDataType(Parser *parser);
+static AST_Expression *parseExpression(Parser *parser, Operator_Precedence op);
 
 static AST_DataType *parseSimpleType(Parser *parser) {
   AST_SimpleType *pSimple = TALLOCATE_(parser->pAllocator, AST_SimpleType, 1);
@@ -101,7 +86,7 @@ static AST_DataType *parseFunctionType(Parser *parser) {
   Parser_advance(parser);
 
   AST_Reference ref;
-  AST_setReference(&ref, &pFunction->pParameter);
+  AST_setReference(&ref, (AST **)&pFunction->pParameter);
 
   if (!Parser_expects(parser, TOKEN_TYPE_RIGHT_PARENTHESIS)) {
     for (;;) {
@@ -109,7 +94,7 @@ static AST_DataType *parseFunctionType(Parser *parser) {
       if (!pParameter) {
         return NULL;
       }
-      AST_referenceSetValue(&ref, pParameter);
+      AST_referenceSetValue(&ref, (AST *)pParameter);
       AST_setReference(&ref, &pParameter->base.pNext);
       if (!Parser_expects(parser, TOKEN_TYPE_COMMA)) {
         break;
@@ -188,64 +173,82 @@ static AST_DataType *parseDataType(Parser *parser) {
   return pType;
 }
 
-static AST_Declaration *parseFunctionDeclaration(Parser *parser,
-                                                 Function *pTransaction) {
-  pTransaction->pFunctionType = parseFunctionType(parser);
-  if (!pTransaction->pFunctionType) {
+static AST_FunctionDefinition *parseFunctionDefinition(Parser *parser) {
+  AST_FunctionDefinition *pFD =
+      TALLOCATE_(parser->pAllocator, AST_FunctionDefinition, 1);
+  if (!pFD) {
     return NULL;
   }
+  *pFD = (AST_FunctionDefinition){0};
+  pFD->base.type = AST_TYPE_FUNCTION_DEFINITION;
 
-  if (!Parser_expects(parser, TOKEN_TYPE_SEMICOLON)) {
+  AST_Reference ref;
+  AST_setReference(&ref, (AST **)&pFD->pArguments);
+  for (;;) {
+    AST_Identifier *pID = TALLOCATE_(parser->pAllocator, AST_Identifier, 1);
+    if (!pID) {
+      return NULL;
+    }
+    *pID = (AST_Identifier){0};
+    pID->base.type = AST_TYPE_IDENTIFIER;
+    pID->name = Parser_index(parser);
+    Parser_advance(parser);
+    AST_referenceSetValue(&ref, (AST *)pID);
+    AST_setReference(&ref, &pID->base.pNext);
+    if (!Parser_expects(parser, TOKEN_TYPE_COMMA)) {
+      break;
+    }
+    Parser_advance(parser);
+  }
+
+  if (!Parser_expects(parser, TOKEN_TYPE_RIGHT_PARENTHESIS)) {
     Parser_syntaxError(parser);
-    // return (AST_Declaration *)parseFunctionDeclarationDefinition(parser,
-    // pTransaction);
   }
   Parser_advance(parser);
 
-  AST_Declaration *pFunction =
-      TALLOCATE_(parser->pAllocator, AST_Declaration, 1);
-  if (!pFunction) {
-    return NULL;
+  if (!Parser_expects(parser, TOKEN_TYPE_EQUAL)) {
+    Parser_syntaxError(parser);
   }
-  *pFunction = (AST_Declaration){0};
-  pFunction->base.type = AST_TYPE_DECLARATION_FUNCTION;
-  pFunction->pDataType = pTransaction->pFunctionType;
-  return pFunction;
+  Parser_advance(parser);
+
+  AST_setReference(&ref, (AST **)&pFD->pExpression);
+  for (;;) {
+    AST_Expression *pExpression =
+        parseExpression(parser, OPERATOR_PRECEDENCE_MINIMUM);
+    if (!pExpression) {
+      return NULL;
+    }
+
+    if (!Parser_expects(parser, TOKEN_TYPE_SEMICOLON)) {
+      Parser_syntaxError(parser);
+    }
+    Parser_advance(parser);
+
+    AST_referenceSetValue(&ref, (AST *)pExpression);
+    AST_setReference(&ref, &pExpression->base.pNext);
+    if (Parser_expects(parser, TOKEN_TYPE_KEYWORD_END)) {
+      Parser_advance(parser);
+      break;
+    }
+  }
+
+  return pFD;
 }
 
 static AST_Declaration *parseDeclaration(Parser *parser) {
-  AST_Declaration *pDeclaration = NULL;
-  size_t nameIndex = Parser_index(parser);
-
-  Parser_advance(parser);
-  if (Parser_expects(parser, TOKEN_TYPE_COLON_COLON)) {
-    Parser_advance(parser);
-    if (Parser_expects(parser, TOKEN_TYPE_LEFT_PARENTHESIS)) {
-      Function fn = {0};
-      fn.name.base.type = AST_TYPE_IDENTIFIER;
-      fn.name.name = nameIndex;
-      pDeclaration = parseFunctionDeclaration(parser, &fn);
-      if (!pDeclaration) {
-        return NULL;
-      }
-    } else {
-      Variable var = {0};
-      var.name.base.type = AST_TYPE_IDENTIFIER;
-      var.name.name = nameIndex;
-      pDeclaration = parseVariableDeclaration(parser, &var);
-      if (!pDeclaration) {
-        return NULL;
-      }
-      assert(0 && "variable declaration unimplemented");
-    }
-  } else if (Parser_expects(parser, TOKEN_TYPE_LEFT_PARENTHESIS)) {
-    Parser_advance(parser);
-    pDeclaration = (AST_Declaration *)parseFunctionDefinition(parser);
-    pDeclaration->name.base.type = AST_TYPE_IDENTIFIER;
-    pDeclaration->name.name = nameIndex;
-  } else {
+  AST_Declaration *pDeclaration =
+      TALLOCATE_(parser->pAllocator, AST_Declaration, 1);
+  if (!pDeclaration) {
+    return NULL;
+  }
+  *pDeclaration = (AST_Declaration){0};
+  // pDeclaration->name :: Set by Parser_parseAST
+  pDeclaration->base.type = AST_TYPE_DECLARATION;
+  pDeclaration->pDataType = parseDataType(parser);
+  if (!Parser_expects(parser, TOKEN_TYPE_SEMICOLON)) {
     Parser_syntaxError(parser);
   }
+  Parser_advance(parser);
 
   return pDeclaration;
 }
@@ -283,16 +286,172 @@ static AST_Literal *parseLiteral(Parser *parser) {
   return pLiteral;
 }
 
-static AST_Expression *parseLeftDenotation(Parser *parser) {
-  switch (Parser_type(parser)) {
+static AST_BinaryOperator *
+parseBinaryOperator(Parser *parser, Operator_Type type, AST_Expression *pLHS) {
+  AST_BinaryOperator *pBOP =
+      TALLOCATE_(parser->pAllocator, AST_BinaryOperator, 1);
+  if (!pBOP) {
+    return NULL;
+  }
+  *pBOP = (AST_BinaryOperator){0};
+  pBOP->self.base.type = AST_TYPE_EXPRESSION_BINARY_OPERATOR;
+  pBOP->pLeft = pLHS;
+
+  switch (type) {
+  case OPERATOR_TYPE_COLON_COLON: {
+    pBOP->operatorType = OPERATOR_TYPE_COLON_COLON;
+    pBOP->pRight =
+        parseExpression(parser, Operator_getPrecedence(TOKEN_TYPE_COLON_COLON));
+    break;
+  }
+  case OPERATOR_TYPE_EQUAL: {
+    pBOP->operatorType = OPERATOR_TYPE_EQUAL;
+    pBOP->pRight =
+        parseExpression(parser, Operator_getPrecedence(TOKEN_TYPE_EQUAL) - 1);
+    break;
+  }
+  case OPERATOR_TYPE_PLUS: {
+    pBOP->operatorType = OPERATOR_TYPE_PLUS;
+    pBOP->pRight =
+        parseExpression(parser, Operator_getPrecedence(TOKEN_TYPE_PLUS));
+    break;
+  }
+  case OPERATOR_TYPE_MINUS: {
+    pBOP->operatorType = OPERATOR_TYPE_MINUS;
+    pBOP->pRight =
+        parseExpression(parser, Operator_getPrecedence(TOKEN_TYPE_MINUS));
+    break;
+  }
+  case OPERATOR_TYPE_ASTERISK: {
+    pBOP->operatorType = OPERATOR_TYPE_ASTERISK;
+    pBOP->pRight =
+        parseExpression(parser, Operator_getPrecedence(TOKEN_TYPE_ASTERISK));
+    break;
+  }
+  case OPERATOR_TYPE_FORWARD_SLASH: {
+    pBOP->operatorType = OPERATOR_TYPE_FORWARD_SLASH;
+    pBOP->pRight = parseExpression(
+        parser, Operator_getPrecedence(TOKEN_TYPE_FORWARD_SLASH));
+    break;
+  }
+  case OPERATOR_TYPE_PERCENTAGE: {
+    pBOP->operatorType = OPERATOR_TYPE_PERCENTAGE;
+    pBOP->pRight =
+        parseExpression(parser, Operator_getPrecedence(TOKEN_TYPE_PERCENTAGE));
+    break;
+  }
+  case OPERATOR_TYPE_LESS_THAN_MINUS: {
+    pBOP->operatorType = OPERATOR_TYPE_LESS_THAN_MINUS;
+    pBOP->pRight = parseExpression(
+        parser, Operator_getPrecedence(TOKEN_TYPE_LESS_THAN_MINUS) - 1);
+    break;
+  }
   default:
     assert(0 && "case unimplemented");
   }
-  return NULL;
+  return pBOP;
+}
+
+static AST_Expression *parseLeftDenotation(Parser *parser,
+                                           AST_Expression *pLHS) {
+  AST_Expression *pExpression = NULL;
+  switch (Parser_type(parser)) {
+  case TOKEN_TYPE_LESS_THAN_MINUS: {
+    Parser_advance(parser);
+    pExpression = (AST_Expression *)parseBinaryOperator(
+        parser, OPERATOR_TYPE_LESS_THAN_MINUS, pLHS);
+    if (!pExpression) {
+      return NULL;
+    }
+    break;
+  }
+  case TOKEN_TYPE_EQUAL: {
+    Parser_advance(parser);
+    pExpression = (AST_Expression *)parseBinaryOperator(
+        parser, OPERATOR_TYPE_EQUAL, pLHS);
+    if (!pExpression) {
+      return NULL;
+    }
+    break;
+  }
+  case TOKEN_TYPE_PERCENTAGE: {
+    Parser_advance(parser);
+    pExpression = (AST_Expression *)parseBinaryOperator(
+        parser, OPERATOR_TYPE_PERCENTAGE, pLHS);
+    if (!pExpression) {
+      return NULL;
+    }
+    break;
+  }
+  case TOKEN_TYPE_FORWARD_SLASH: {
+    Parser_advance(parser);
+    pExpression = (AST_Expression *)parseBinaryOperator(
+        parser, OPERATOR_TYPE_FORWARD_SLASH, pLHS);
+    if (!pExpression) {
+      return NULL;
+    }
+    break;
+  }
+  case TOKEN_TYPE_ASTERISK: {
+    Parser_advance(parser);
+    pExpression = (AST_Expression *)parseBinaryOperator(
+        parser, OPERATOR_TYPE_ASTERISK, pLHS);
+    if (!pExpression) {
+      return NULL;
+    }
+    break;
+  }
+  case TOKEN_TYPE_PLUS: {
+    Parser_advance(parser);
+    pExpression =
+        (AST_Expression *)parseBinaryOperator(parser, OPERATOR_TYPE_PLUS, pLHS);
+    if (!pExpression) {
+      return NULL;
+    }
+    break;
+  }
+  case TOKEN_TYPE_MINUS: {
+    Parser_advance(parser);
+    pExpression = (AST_Expression *)parseBinaryOperator(
+        parser, OPERATOR_TYPE_MINUS, pLHS);
+    if (!pExpression) {
+      return NULL;
+    }
+    break;
+  }
+  case TOKEN_TYPE_LEFT_PARENTHESIS: {
+    Parser_advance(parser);
+  }
+  case TOKEN_TYPE_COLON_COLON: {
+    Parser_advance(parser);
+    pExpression = (AST_Expression *)parseBinaryOperator(
+        parser, OPERATOR_TYPE_COLON_COLON, pLHS);
+    if (!pExpression) {
+      return NULL;
+    }
+    break;
+  }
+  default:
+    assert(0 && "case unimplemented");
+  }
+  return pExpression;
 }
 
 static AST_Expression *parseNullDenotation(Parser *parser) {
   switch (Parser_type(parser)) {
+  case TOKEN_TYPE_LEFT_PARENTHESIS: {
+    Parser_advance(parser);
+    AST_Expression *pExpression =
+        parseExpression(parser, OPERATOR_PRECEDENCE_MINIMUM);
+    if (!pExpression) {
+      return NULL;
+    }
+
+    if (!Parser_expects(parser, TOKEN_TYPE_RIGHT_PARENTHESIS)) {
+      Parser_syntaxError(parser);
+    }
+    return pExpression;
+  }
   case TOKEN_TYPE_DIGIT: {
     AST_Literal *pLiteral = parseLiteral(parser);
     if (!pLiteral) {
@@ -314,16 +473,16 @@ static AST_Expression *parseNullDenotation(Parser *parser) {
 }
 
 static AST_Expression *parseExpression(Parser *parser, Operator_Precedence op) {
-  AST_Expression *lhs = parseNullDenotation(parser);
+  AST_Expression *pLHS = parseNullDenotation(parser);
   for (;;) {
     Operator_Precedence newOp = Operator_getPrecedence(Parser_type(parser));
     assert(newOp != 0);
     if (newOp <= op) {
       break;
     }
-    lhs = parseLeftDenotation(parser);
+    pLHS = parseLeftDenotation(parser, pLHS);
   }
-  return lhs;
+  return pLHS;
 }
 
 AST_Root *Parser_parseAST(Parser *parser) {
@@ -336,22 +495,56 @@ AST_Root *Parser_parseAST(Parser *parser) {
   pRoot->base.type = AST_TYPE_ROOT;
 
   AST_Reference ref = NULL;
-  AST_setReference(&ref, &pRoot->pDeclarations);
+  AST_setReference(&ref, &pRoot->pAST);
 
-  switch (Parser_type(parser)) {
-  case TOKEN_TYPE_IDENTIFIER: {
-    for (; !Parser_expects(parser, TOKEN_TYPE_END_OF_FILE);) {
-      AST_Declaration *pDeclaration = parseDeclaration(parser);
-      if (!pDeclaration) {
-        return NULL;
+  for (;;) {
+    switch (Parser_type(parser)) {
+    case TOKEN_TYPE_IDENTIFIER: {
+      size_t nameIndex = Parser_index(parser);
+      Parser_advance(parser);
+      // INFO: Replace if/else chain with perfect hash (260918)
+
+      if (!Parser_expects(parser, TOKEN_TYPE_COLON_COLON)) {
+        if (!Parser_expects(parser, TOKEN_TYPE_LEFT_PARENTHESIS)) {
+          Parser_syntaxError(parser);
+        }
+        Parser_advance(parser);
+        AST_FunctionDefinition *pFD = parseFunctionDefinition(parser);
+        pFD->name.base.type = AST_TYPE_IDENTIFIER;
+        pFD->name.name = nameIndex;
+        AST_referenceSetValue(&ref, (AST *)pFD);
+        break;
       }
-      AST_referenceSetValue(&ref, pDeclaration);
-      AST_setReference(&ref, &pDeclaration->base.pNext);
+      Parser_advance(parser);
+
+      AST_Declaration *pDeclaration = NULL;
+
+      if (Parser_type(parser) == TOKEN_TYPE_KEYWORD_STRUCT) {
+        assert(0 && "struct decl/def unimplemented");
+      } else if (Parser_type(parser) == TOKEN_TYPE_KEYWORD_ENUM) {
+        assert(0 && "enum decl/def unimplemented");
+      } else if (Parser_type(parser) == TOKEN_TYPE_KEYWORD_UNION) {
+        assert(0 && "union decl/def unimplemented");
+      } else if (Parser_type(parser) == TOKEN_TYPE_KEYWORD_DATA) {
+        assert(0 && "union decl/def unimplemented");
+      } else {
+        pDeclaration = parseDeclaration(parser);
+        if (!pDeclaration) {
+          return NULL;
+        }
+        pDeclaration->name.base.type = AST_TYPE_IDENTIFIER;
+        pDeclaration->name.name = nameIndex;
+        AST_referenceSetValue(&ref, (AST *)pDeclaration);
+        AST_setReference(&ref, &pDeclaration->base.pNext);
+      }
+    } break;
+    default:
+      fprintf(stderr, "[CASE]: %s\n", Token_getType(Parser_type(parser)));
+      assert(0 && "unimplemented token type");
     }
-    break;
-  }
-  default:
-    assert(0 && "unimplemented token type");
+    if (Parser_type(parser) == TOKEN_TYPE_END_OF_FILE) {
+      break;
+    }
   }
   return pRoot;
 }
@@ -365,4 +558,47 @@ const char *const AST_getType(AST_Type type) {
 #undef X
   }
   return "AST_TYPE_UNKNOWN";
+}
+const char *const Operator_getType(Operator_Type op) {
+  switch (op) {
+#define X(ENUM, _)                                                             \
+  case ENUM:                                                                   \
+    return #ENUM;
+    OPERATOR_TYPE__
+#undef X
+  }
+  return "OPERATOR_TYPE_UNKNOWN";
+}
+
+const char *const Operator_getPtr(Operator_Type op) {
+  switch (op) {
+#define X(ENUM, CHAR)                                                          \
+  case ENUM:                                                                   \
+    return CHAR;
+    OPERATOR_TYPE__
+#undef X
+  }
+  return "OPERATOR_TYPE_UNKNOWN";
+}
+
+const char *const Literal_getType(Literal_Type type) {
+  switch (type) {
+#define X(ENUM, _)                                                             \
+  case ENUM:                                                                   \
+    return #ENUM;
+    LITERAL_TYPE__
+#undef X
+  }
+  return "LITERAL_TYPE_UNKNOWN";
+}
+
+const char *const Literal_getPtr(Literal_Type type) {
+  switch (type) {
+#define X(ENUM, CHAR)                                                          \
+  case ENUM:                                                                   \
+    return CHAR;
+    LITERAL_TYPE__
+#undef X
+  }
+  return "LITERAL_TYPE_UNKNOWN";
 }

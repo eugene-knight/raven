@@ -17,10 +17,11 @@
   X(TOKEN_TYPE_COMMA)                                                          \
   X(TOKEN_TYPE_CARET)                                                          \
   X(TOKEN_TYPE_DOLLAR)                                                         \
-  X(TOKEN_TYPE_ASTERISK)                                                       \
-  X(TOKEN_TYPE_PLUS)                                                           \
-  X(TOKEN_TYPE_MINUS)                                                          \
+  X(TOKEN_TYPE_PERCENTAGE)                                                     \
   X(TOKEN_TYPE_FORWARD_SLASH)                                                  \
+  X(TOKEN_TYPE_ASTERISK)                                                       \
+  X(TOKEN_TYPE_MINUS)                                                          \
+  X(TOKEN_TYPE_PLUS)                                                           \
   X(TOKEN_TYPE_MINUS_GREATER_THAN)                                             \
   X(TOKEN_TYPE_LESS_THAN_MINUS)                                                \
   X(TOKEN_TYPE_LESS_THAN)                                                      \
@@ -28,6 +29,10 @@
   X(TOKEN_TYPE_DIGIT)                                                          \
   X(TOKEN_TYPE_SEMICOLON)                                                      \
   X(TOKEN_TYPE_KEYWORD_END)                                                    \
+  X(TOKEN_TYPE_KEYWORD_STRUCT)                                                 \
+  X(TOKEN_TYPE_KEYWORD_ENUM)                                                   \
+  X(TOKEN_TYPE_KEYWORD_DATA)                                                   \
+  X(TOKEN_TYPE_KEYWORD_UNION)                                                  \
   X(TOKEN_TYPE_END_OF_FILE)
 
 typedef uint32_t Token_Type;

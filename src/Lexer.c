@@ -280,8 +280,17 @@ static inline void Lexer_advanceNSyncState(Lexer *lexer) {
 
 static void Lexer_isKeyword(Lexer *lexer, Token_Proxy *pProxy) {
   char *lhs = Token_getProxyPtr(pProxy);
+  // INFO: Replace if/else chain with perfect hash (260918)
   if (strncmp(lhs, "end", 3) == 0) {
     Token_setProxyType(pProxy, TOKEN_TYPE_KEYWORD_END);
+  } else if (strncmp(lhs, "struct", 6) == 0) {
+    Token_setProxyType(pProxy, TOKEN_TYPE_KEYWORD_STRUCT);
+  } else if (strncmp(lhs, "enum", 4) == 0) {
+    Token_setProxyType(pProxy, TOKEN_TYPE_KEYWORD_ENUM);
+  } else if (strncmp(lhs, "data", 4) == 0) {
+    Token_setProxyType(pProxy, TOKEN_TYPE_KEYWORD_DATA);
+  } else if (strncmp(lhs, "union", 5) == 0) {
+    Token_setProxyType(pProxy, TOKEN_TYPE_KEYWORD_UNION);
   }
 }
 
@@ -394,6 +403,42 @@ static inline void Lexer_symbolMinus(Lexer *lexer, Token_Proxy *pProxy) {
   Lexer_complete(lexer);
 }
 
+static inline void Lexer_symbolPercentage(Lexer *lexer, Token_Proxy *pProxy) {
+  Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
+  Token_setProxyType(pProxy, TOKEN_TYPE_PERCENTAGE);
+  Token_setProxyLength(pProxy, 1);
+
+  Lexer_advanceCursor(lexer);
+  Lexer_complete(lexer);
+}
+
+static inline void Lexer_symbolForwardSlash(Lexer *lexer, Token_Proxy *pProxy) {
+  Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
+  Token_setProxyType(pProxy, TOKEN_TYPE_FORWARD_SLASH);
+  Token_setProxyLength(pProxy, 1);
+
+  Lexer_advanceCursor(lexer);
+  Lexer_complete(lexer);
+}
+
+static inline void Lexer_symbolAsterisk(Lexer *lexer, Token_Proxy *pProxy) {
+  Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
+  Token_setProxyType(pProxy, TOKEN_TYPE_ASTERISK);
+  Token_setProxyLength(pProxy, 1);
+
+  Lexer_advanceCursor(lexer);
+  Lexer_complete(lexer);
+}
+
+static inline void Lexer_symbolPlus(Lexer *lexer, Token_Proxy *pProxy) {
+  Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
+  Token_setProxyType(pProxy, TOKEN_TYPE_PLUS);
+  Token_setProxyLength(pProxy, 1);
+
+  Lexer_advanceCursor(lexer);
+  Lexer_complete(lexer);
+}
+
 static inline void Lexer_symbolLessThan(Lexer *lexer, Token_Proxy *pProxy) {
   Token_setProxyPtr(pProxy, Lexer_pointsAt(lexer));
   Token_setProxyType(pProxy, TOKEN_TYPE_LESS_THAN);
@@ -418,6 +463,22 @@ static inline void Lexer_symbol(Lexer *lexer, Token_Proxy *pProxy) {
   Token_setProxyColumn(pProxy, pos.column);
 
   switch (*Lexer_pointsAt(lexer)) {
+  case '%': {
+    Lexer_symbolPercentage(lexer, pProxy);
+    break;
+  }
+  case '/': {
+    Lexer_symbolForwardSlash(lexer, pProxy);
+    break;
+  }
+  case '*': {
+    Lexer_symbolAsterisk(lexer, pProxy);
+    break;
+  }
+  case '+': {
+    Lexer_symbolPlus(lexer, pProxy);
+    break;
+  }
   case '-': {
     Lexer_symbolMinus(lexer, pProxy);
     break;
